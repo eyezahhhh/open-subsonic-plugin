@@ -2,6 +2,7 @@ import type PipeBomb from "@sdk";
 import { WebServer } from "./web-server.js";
 import { SubsonicConfigManager } from "./subsonic.config-manager.js";
 import { getPluginVersion } from "./util.js";
+import { SessionManager } from "./session-manager.js";
 
 export default class Plugin implements PipeBomb.Plugin {
 	private api!: PipeBomb.PluginApiContext;
@@ -13,13 +14,27 @@ export default class Plugin implements PipeBomb.Plugin {
 
 		this.api.registerLanguageDirectory("language");
 
-		const configManager = new SubsonicConfigManager();
+		const authClient = this.api.requestAuthClient();
+		if (!authClient) {
+			this.logger.error("********************");
+			this.logger.error(
+				"Failed to create auth client. OpenSubsonic integration is disabled",
+			);
+			this.logger.error("********************");
+			return;
+		}
+
+		const configManager = new SubsonicConfigManager(authClient);
 		this.api.registerConfigManager(configManager);
 
 		getPluginVersion().then((pluginVersion) => {
+			const sessionManager = new SessionManager(this.api.getDataClient());
+
 			const webServer = new WebServer(
 				this.logger,
 				configManager,
+				this.api.getDataClient(),
+				sessionManager,
 				pluginVersion,
 			);
 

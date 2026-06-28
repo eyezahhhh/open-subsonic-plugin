@@ -1,18 +1,27 @@
 import {
+	AuthClient,
 	ConfigManager,
 	ConfigManagerApiContext,
 	ConfigNode,
 	HeadingConfigNode,
 } from "@sdk";
 
+export interface UserInfo {
+	uuid: string;
+	username: string;
+	password: string;
+}
+
 export class SubsonicConfigManager implements ConfigManager {
 	private api!: ConfigManagerApiContext;
 
 	private port: number | null = null;
 	private name: string | null = null;
-	private logins: Record<string, string> = {};
+	private logins: Record<string, UserInfo> = {};
 
 	private readonly updateListeners = new Set<() => void>();
+
+	constructor(private readonly authClient: AuthClient) {}
 
 	async enable(configManagerApiContext: ConfigManagerApiContext) {
 		this.api = configManagerApiContext;
@@ -34,11 +43,15 @@ export class SubsonicConfigManager implements ConfigManager {
 			this.logins = {};
 			return this.emit();
 		}
-		const logins: Record<string, string> = {};
+		const logins: Record<string, UserInfo> = {};
 		for (const loginString of loginStrings) {
-			const [username, password] = loginString.split(":", 2);
-			if (username && password) {
-				logins[username] = Buffer.from(password, "hex").toString("utf-8");
+			const [uuid, username, password] = loginString.split(":", 3);
+			if (uuid && username && password) {
+				logins[username] = {
+					uuid,
+					username,
+					password: Buffer.from(password, "hex").toString("utf-8"),
+				};
 			}
 		}
 
@@ -46,7 +59,7 @@ export class SubsonicConfigManager implements ConfigManager {
 		this.emit();
 	}
 
-	getPassword(username: string) {
+	getUserInfo(username: string) {
 		return this.logins[username] ?? null;
 	}
 
@@ -102,8 +115,8 @@ export class SubsonicConfigManager implements ConfigManager {
 							content: "Logins",
 							size: "md",
 						},
-						...Object.entries(this.logins).map(
-							([username, password]) =>
+						...Object.values(this.logins).map(
+							({ username, password }) =>
 								({
 									type: "heading",
 									content: `[${username}]: "${password}"`,
@@ -174,29 +187,36 @@ export class SubsonicConfigManager implements ConfigManager {
 			typeof password == "string" &&
 			username.trim()
 		) {
-			username = username.trim();
-			password = password.trim();
-			const newLogins = Object.entries(this.logins).filter(
-				(entry) => entry[0] != username,
-			);
+			const uuid = await this.authClient.getUuid(username.trim());
+			if (uuid) {
+				username = username.trim();
+				password = password.trim();
+				const newLogins = Object.values(this.logins).filter(
+					(entry) => entry.username != username,
+				);
 
-			if (password) {
-				newLogins.push([username, password]);
+				if (password) {
+					newLogins.push({
+						uuid,
+						username,
+						password,
+					});
+				}
+
+				const newLoginStrings = newLogins.map(
+					({ uuid, username, password }) =>
+						`${uuid}:${username}:${Buffer.from(password, "utf-8").toString("hex")}`,
+				);
+
+				await this.api.setValue("login", "string", newLoginStrings);
+				if (password.trim()) {
+					this.logins[username] = { uuid, username, password };
+				} else {
+					delete this.logins[username];
+				}
+
+				console.log(newLoginStrings);
 			}
-
-			const newLoginStrings = newLogins.map(
-				([username, password]) =>
-					`${username}:${Buffer.from(password, "utf-8").toString("hex")}`,
-			);
-
-			await this.api.setValue("login", "string", newLoginStrings);
-			if (password.trim()) {
-				this.logins[username] = password;
-			} else {
-				delete this.logins[username];
-			}
-
-			console.log(newLoginStrings);
 		}
 
 		this.emit();
