@@ -117,21 +117,10 @@ export function formatTrack(track: SavedTrack): Child {
 
 	let artistName = "";
 	let artistId = "";
-	let artists: SavedArtistTrack[] | undefined = undefined;
 
 	if (track.artists?.length) {
-		const existingIds = new Set<string>();
-
-		artists = [...track.artists]
-			.sort((a, b) => a.ordinal - b.ordinal)
-			.filter((artist) => {
-				if (existingIds.has(artist.artistUuid)) {
-					return false;
-				}
-				existingIds.add(artist.artistUuid);
-				return true;
-			});
-		const primaryArtist = artists[0]!;
+		const sorted = [...track.artists].sort((a, b) => a.ordinal - b.ordinal);
+		const primaryArtist = sorted[0]!;
 		artistName =
 			getAttributeValue(primaryArtist.artist?.attributes, "name", "string") ??
 			"";
@@ -144,7 +133,7 @@ export function formatTrack(track: SavedTrack): Child {
 		isDir: false,
 		artist: artistName,
 		artistId,
-		artists: artists?.map((artist) =>
+		artists: track.artists?.map((artist) =>
 			artist.artist
 				? formatArtist(artist.artist)
 				: blankArtist(artist.artistUuid),
@@ -236,7 +225,7 @@ export function formatPlaylist(playlist: SavedPlaylist): Playlist {
 		name:
 			getAttributeValue(attributes, "title", "string") ?? "Unknown Playlist",
 		songCount: playlist.tracks?.length ?? 0,
-		duration,
+		duration: Math.round(duration),
 		created: playlist.dateCreated.toISOString(),
 		changed: playlist.dateCreated.toISOString(),
 		allowedUser: playlist.owner ? [playlist.owner.username] : [],
