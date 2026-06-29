@@ -1,8 +1,8 @@
-import { PlaylistClient } from "@sdk";
+import { PlaylistClient, SavedPlaylistTrack } from "@sdk";
 import { CreateEndpointFunction, WebModule } from "./web-module.js";
 import { Playlist } from "../types.js";
-import { formatPlaylist } from "../formatter.js";
 import { ErrCode, SubsonicError } from "../subsonic.error.js";
+import { formatPlaylist } from "../formatter.js";
 
 export class PlaylistsWebModule extends WebModule {
 	constructor(private readonly playlistClient: PlaylistClient) {
@@ -13,7 +13,6 @@ export class PlaylistsWebModule extends WebModule {
 		endpoint("getPlaylists", async ({ userId }) => {
 			const playlistIds =
 				await this.playlistClient.getUserPlaylistUuids(userId);
-
 			const playlists = await Promise.allSettled(
 				playlistIds.map((id) =>
 					this.playlistClient.getPlaylist(id, {
@@ -25,12 +24,10 @@ export class PlaylistsWebModule extends WebModule {
 					}),
 				),
 			);
-
 			const entries: Playlist[] = playlists.map((response, index) => {
 				if (response.status == "fulfilled" && response.value) {
 					return formatPlaylist(response.value);
 				}
-
 				return {
 					id: playlistIds[index]!,
 					name: "Unknown Playlist",
@@ -40,14 +37,12 @@ export class PlaylistsWebModule extends WebModule {
 					changed: new Date(0).toISOString(),
 				};
 			});
-
 			return {
 				playlists: {
 					playlist: entries,
 				},
 			};
 		});
-
 		endpoint("getPlaylist", async ({ userId, queryParams }) => {
 			const { id } = queryParams;
 			if (!id) {
@@ -56,32 +51,34 @@ export class PlaylistsWebModule extends WebModule {
 					"No ID specified",
 				);
 			}
-
 			const playlist = await this.playlistClient.getPlaylist(id, {
 				relations: {
 					attributes: true,
 					owner: true,
-					tracks: {
-						track: {
-							artists: {
-								attributes: true,
-							},
-							attributes: true,
-						},
-					},
+					tracks: true,
 				},
 			});
-
 			if (!playlist) {
 				throw new SubsonicError(ErrCode.NOT_FOUND, "Playlist not found");
 			}
 			if (playlist.ownerUuid != userId) {
 				throw new SubsonicError(ErrCode.UNAUTHORIZED_USER, "Unauthorized");
 			}
-
 			return {
 				playlist: formatPlaylist(playlist),
 			};
 		});
+	}
+
+	private async convertTracklist(tracks: SavedPlaylistTrack[]) {
+		const chunks: SavedPlaylistTrack[][] = [];
+		for (let i = 0; i < tracks.length; i += 500) {
+			chunks.push(tracks.slice(i, i + 500));
+		}
+
+		for (const chunk of chunks) {
+		}
+
+		console.log(chunks);
 	}
 }

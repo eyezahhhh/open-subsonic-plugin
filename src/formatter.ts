@@ -1,49 +1,30 @@
-import {
-	SavedAlbum,
-	SavedAlbumArtist,
-	SavedArtist,
-	SavedArtistTrack,
-	SavedAttribute,
-	SavedPlaylist,
-	SavedTrack,
-} from "@sdk";
-import {
-	AlbumID3,
-	AlbumID3WithSongs,
-	Artist,
-	Child,
-	Playlist,
-} from "./types.js";
+import { SavedPlaylist } from "@sdk";
+import * as schema from "./db/schema.js";
+import { AlbumID3WithSongs, Artist, Child, Playlist } from "./types.js";
 import { createAttributeRecord, getAttributeValue } from "./util.js";
+import DBFormatter from "./db/db-formatter.js";
 
-export function formatArtist(artist: SavedArtist): Artist {
-	const attributes = createAttributeRecord(artist?.attributes ?? []);
-	const name = getAttributeValue(attributes, "name", "string");
-	const coverArt = getAttributeValue(attributes, "thumb", "buffer");
+export function formatArtist(artist: schema.Artist): Artist {
+	const response: Artist = {
+		id: artist.id,
+		name: artist.name,
+		coverArt: artist.coverArt ?? "",
+		musicBrainzId: artist.musicBrainzId ?? "",
+		albumCount: artist.albumCount ?? 0,
+	};
 
-	const musicbrainzId = artist?.identities?.find(
-		(identity) => identity.identityId == "musicbrainz_artist_id",
-	)?.identity;
-
-	const albums: AlbumID3[] = [];
-
-	if (artist.albums) {
-		for (const albumLink of artist.albums) {
-			if (albumLink.album) {
-				const formatted = formatAlbum(albumLink.album);
-				albums.push(formatted);
+	if (artist.albumArtists) {
+		response.album = [];
+		for (const link of artist.albumArtists) {
+			if (link.album) {
+				response.album.push(formatAlbum(link.album));
+			} else if (link.albumId) {
+				response.album.push(blankAlbum(link.albumId));
 			}
 		}
 	}
 
-	return {
-		id: artist.uuid,
-		name: name?.trim() || "Unknown Artist",
-		albumCount: artist?.albums?.length ?? 0,
-		musicBrainzId: musicbrainzId ?? "",
-		coverArt: coverArt ? `${coverArt.uuid}.${coverArt.extension}` : "",
-		album: artist.albums ? albums : undefined,
-	};
+	return response;
 }
 
 export function blankArtist(uuid: string): Artist {
@@ -56,147 +37,120 @@ export function blankArtist(uuid: string): Artist {
 	};
 }
 
-export function formatAlbum(album: SavedAlbum): AlbumID3WithSongs {
-	const attributes = createAttributeRecord(album?.attributes ?? []);
-	const name = getAttributeValue(attributes, "title", "string");
-	const coverArt = getAttributeValue(attributes, "front", "buffer");
-
+export function formatAlbum(album: schema.Album): AlbumID3WithSongs {
 	let artistName = "";
 	let artistId = "";
 
-	if (album.artists?.length) {
-		const sorted = [...album.artists].sort((a, b) => a.ordinal - b.ordinal);
+	if (album.albumArtists?.length) {
+		const sorted = [...album.albumArtists].sort(
+			(a, b) => a.ordinal! - b.ordinal!,
+		);
 		const primaryArtist = sorted[0]!;
-		artistName =
-			getAttributeValue(primaryArtist.artist?.attributes, "name", "string") ??
-			"";
-		artistId = primaryArtist.artistUuid;
+		artistName = primaryArtist.artist?.name ?? "Unknown Artist";
+		artistId = primaryArtist.artistId!;
 	}
 
-	let duration = 0;
-	const tracks: SavedTrack[] = [];
-	for (const { track } of album.tracks ?? []) {
-		if (track) {
-			tracks.push(track);
-			const attributes = track.attributes;
-			if (attributes) {
-				const trackDuration = getAttributeValue(
-					attributes,
-					"duration",
-					"decimal",
-				);
-				if (trackDuration) {
-					duration += trackDuration;
-				}
-			}
+	const response: AlbumID3WithSongs = {
+		id: album.id,
+		name: album.title,
+		coverArt: album.coverArt ?? "",
+		musicBrainzId: album.musicBrainzId ?? "",
+		songCount: album.songCount ?? 0,
+		created: new Date(album.dateCreated ?? 0).toISOString(),
+		duration: Math.round(album.duration ?? 0),
+		artist: artistName,
+		artistId,
+		artists: album.albumArtists?.map((link) =>
+			link.artist ? formatArtist(link.artist) : blankArtist(link.artistId!),
+		),
+	};
+
+	if (album.songs) {
+		response.song = [];
+		for (const song of album.songs) {
+			response.song.push(formatSong(song));
 		}
 	}
 
-	return {
-		id: album.uuid,
-		name: name ?? "Unknown Album",
-		songCount: album.tracks?.length ?? 0,
-		created: new Date().toISOString(),
-		duration,
-		artist: artistName,
-		artistId,
-		artists: album.artists?.map((artist) =>
-			artist.artist
-				? formatArtist(artist.artist)
-				: blankArtist(artist.artistUuid),
-		),
-		displayArtist: getArtistString(album.artists, attributes) ?? undefined,
-		coverArt: coverArt ? `${coverArt.uuid}.${coverArt.extension}` : "",
-		song: album.tracks ? tracks.map(formatTrack) : undefined,
-	};
+	return response;
 }
 
-export function formatTrack(track: SavedTrack): Child {
-	const attributes = createAttributeRecord(track?.attributes ?? []);
-	const coverArt = getAttributeValue(attributes, "front", "buffer");
+export function blankAlbum(uuid: string): AlbumID3WithSongs {
+	const response: AlbumID3WithSongs = {
+		id: uuid,
+		name: "Unknown Album",
+		coverArt: "",
+		musicBrainzId: "",
+		songCount: 0,
+		created: new Date(0).toISOString(),
+		duration: 0,
+	};
 
+	return response;
+}
+
+export function formatSong(song: Omit<schema.Song, "syncId">): Child {
 	let artistName = "";
 	let artistId = "";
 
-	if (track.artists?.length) {
-		const sorted = [...track.artists].sort((a, b) => a.ordinal - b.ordinal);
+	if (song.songArtists?.length) {
+		const sorted = [...song.songArtists].sort(
+			(a, b) => a.ordinal! - b.ordinal!,
+		);
 		const primaryArtist = sorted[0]!;
-		artistName =
-			getAttributeValue(primaryArtist.artist?.attributes, "name", "string") ??
-			"";
-		artistId = primaryArtist.artistUuid;
+		artistName = primaryArtist.artist?.name ?? "Unknown Artist";
+		artistId = primaryArtist.artistId!;
 	}
 
-	return {
-		id: `${track.pluginId}~${track.libraryId}~${track.trackId}`,
-		title: getAttributeValue(attributes, "title", "string") ?? "Unknown Track",
+	const response: Child = {
+		id: song.id,
+		title: song.title,
 		isDir: false,
 		artist: artistName,
 		artistId,
-		artists: track.artists?.map((artist) =>
-			artist.artist
-				? formatArtist(artist.artist)
-				: blankArtist(artist.artistUuid),
+		artists: song.songArtists?.map((link) =>
+			link.artist ? formatArtist(link.artist) : blankArtist(link.artistId!),
 		),
-		displayArtist: getArtistString(track.artists, attributes) ?? "",
-		coverArt: coverArt ? `${coverArt.uuid}.${coverArt.extension}` : "",
-		year: getAttributeValue(attributes, "year", "integer") ?? 0,
-		duration: Math.round(
-			getAttributeValue(attributes, "duration", "decimal") ?? 0,
-		),
-		bitRate: Math.round(
-			(getAttributeValue(attributes, "bitrate", "integer") ?? 0) / 1000,
-		),
-		samplingRate: getAttributeValue(attributes, "samplerate", "integer") ?? 0,
-		channelCount: getAttributeValue(attributes, "channels", "integer") ?? 0,
-		averageRating: getAttributeValue(attributes, "rating", "decimal") ?? 0,
+		displayArtist: getArtistString(song.songArtists ?? []),
+		coverArt: song.coverArt ?? "",
+		duration: Math.round(song.duration ?? 0),
+		bitRate: song.bitrate ?? 0,
+		samplingRate: song.samplerate ?? 0,
+		channelCount: song.channels ?? 0,
+		averageRating: song.rating ?? 0,
 		mediaType: "song",
-		bpm: getAttributeValue(attributes, "bpm", "decimal") ?? 0,
-		album: "",
-		albumId: "",
+		bpm: song.bpm ?? 0,
+		album: song.album?.title ?? "",
+		albumId: song.albumId ?? "",
 	};
+
+	return response;
 }
 
 export function getArtistString(
-	artists: (SavedArtistTrack | SavedAlbumArtist)[] | undefined | null,
-	attributes: Record<string, SavedAttribute>,
+	artists: Omit<schema.SongArtist | schema.AlbumArtist, "syncId">[],
 ) {
-	if (artists) {
-		const fullArtists = artists.map(({ artist, joinPhrase }) => ({
-			...artist,
-			joinPhrase,
-		}));
-		if (fullArtists.length) {
-			let artistString = "";
-			for (const [i, artist] of fullArtists.entries()) {
-				const record = createAttributeRecord(artist?.attributes ?? []);
-				const nameAttribute = record.name;
-				if (nameAttribute?.type == "string" && nameAttribute.values.length) {
-					artistString += nameAttribute.values[0];
-					if (artist.joinPhrase) {
-						artistString += artist.joinPhrase;
-					} else if (i < fullArtists.length - 1) {
-						artistString += ", ";
-					}
+	const fullArtists = artists.map(({ artist, joinPhrase }) => ({
+		...artist,
+		joinPhrase,
+	}));
+	if (fullArtists.length) {
+		let artistString = "";
+		for (const [i, artist] of fullArtists.entries()) {
+			if (artist.name) {
+				artistString += artist.name;
+				if (artist.joinPhrase) {
+					artistString += artist.joinPhrase;
+				} else if (i < fullArtists.length - 1) {
+					artistString += ", ";
 				}
 			}
-
-			return artistString;
 		}
+
+		return artistString;
 	}
 
-	let artistString = "";
-	const attribute = attributes?.artist;
-	if (attribute?.type == "string" && attribute.values.length) {
-		for (const [i, name] of attribute.values.entries()) {
-			artistString += name;
-			if (i < attribute.values.length - 1) {
-				artistString += ", ";
-			}
-		}
-	}
-
-	return artistString || null;
+	return "Unknown Artist";
 }
 
 export function formatPlaylist(playlist: SavedPlaylist): Playlist {
@@ -207,16 +161,11 @@ export function formatPlaylist(playlist: SavedPlaylist): Playlist {
 	let duration = 0;
 	for (const { track } of playlist.tracks ?? []) {
 		if (track) {
+			const song = formatSong(DBFormatter.toSong(track)[0]!);
+
 			containsTracks = true;
-			tracks.push(formatTrack(track));
-			const trackDuration = getAttributeValue(
-				track.attributes,
-				"duration",
-				"decimal",
-			);
-			if (trackDuration) {
-				duration += trackDuration;
-			}
+			tracks.push(song);
+			duration += song.duration ?? 0;
 		}
 	}
 

@@ -4,6 +4,7 @@ import { SubsonicConfigManager } from "./subsonic.config-manager.js";
 import * as crypto from "crypto";
 import { DataClient, Logger } from "@sdk";
 import { CreateEndpointFunction, WebModule } from "./web-module/web-module.js";
+import { DatabaseManager } from "./db/database-manager.js";
 
 export class WebModuleManager {
 	private readonly modules = new Set<WebModule>();
@@ -12,6 +13,7 @@ export class WebModuleManager {
 		private readonly configManager: SubsonicConfigManager,
 		private readonly logger: Logger,
 		private readonly dataClient: DataClient,
+		private readonly databaseManager: DatabaseManager,
 		private readonly pluginVersion: string,
 	) {}
 
@@ -106,6 +108,7 @@ export class WebModuleManager {
 						response: res,
 						dataClient: this.dataClient,
 						configManager: this.configManager,
+						db: this.databaseManager,
 					});
 					if (!options.manualResponse) {
 						res.send(this.response(response as Record<string, any>));

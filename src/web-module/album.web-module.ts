@@ -1,12 +1,22 @@
-import { DataClient } from "@sdk";
 import { ErrCode, SubsonicError } from "../subsonic.error.js";
 import { CreateEndpointFunction, WebModule } from "./web-module.js";
-import { createAttributeRecord, getAttributeValue, shuffle } from "../util.js";
-import { formatAlbum, getArtistString } from "../formatter.js";
+import { sql } from "drizzle-orm";
+import { formatAlbum } from "../formatter.js";
+import { randomUUID } from "crypto";
 
 export class AlbumWebModule extends WebModule {
+	private randomSeed = randomUUID();
+
+	constructor() {
+		super();
+
+		setInterval(() => {
+			this.randomSeed = randomUUID();
+		}, 60_000 * 10);
+	}
+
 	bind(endpoint: CreateEndpointFunction): void {
-		endpoint("getAlbumList2", async ({ queryParams, dataClient }) => {
+		endpoint("getAlbumList2", async ({ queryParams, db }) => {
 			const { type, size: sizeString, offset: offsetString } = queryParams;
 			if (!type) {
 				throw new SubsonicError(
@@ -14,7 +24,6 @@ export class AlbumWebModule extends WebModule {
 					"Missing parameter",
 				);
 			}
-
 			if (
 				![
 					"random",
@@ -31,10 +40,8 @@ export class AlbumWebModule extends WebModule {
 			) {
 				throw new SubsonicError(ErrCode.GENERIC, "Invalid type");
 			}
-
 			let size = 20;
 			let offset = 0;
-
 			if (sizeString) {
 				const sizeNum = parseInt(sizeString);
 				if (!isNaN(sizeNum) && sizeNum > 0) {
@@ -48,107 +55,61 @@ export class AlbumWebModule extends WebModule {
 				}
 			}
 
-			let allAlbums = await this.getAllAlbums(dataClient);
+			const albumsQuery = db.getClient().query.albums;
+			const queryConfig: Parameters<typeof albumsQuery.findMany>[0] = {};
 
-			switch (type) {
-				case "random":
-					shuffle(allAlbums);
-					break;
-				case "newest":
-					allAlbums.sort(
-						(a, b) => b.dateAdded.getTime() - a.dateAdded.getTime(),
-					);
-					break;
-				case "alphabeticalByName": {
-					const albumNames = allAlbums.map((album) => ({
-						album,
-						name:
-							getAttributeValue(album.attributes, "title", "string") ??
-							"Unknown Artist",
-					}));
-					albumNames.sort((a, b) => a.name.localeCompare(b.name));
-					allAlbums = albumNames.map(({ album }) => album);
-					break;
+			queryConfig.orderBy = (albums, { asc, desc }) => {
+				switch (type) {
+					case "random":
+						return [asc(sql`seeded_random(${albums.id}, ${this.randomSeed})`)];
+
+					case "newest":
+						return [desc(albums.dateCreated)];
+
+					case "alphabeticalByName":
+						return [asc(sql`${albums.title} COLLATE NOCASE`)];
+
+					case "alphabeticalByArtist":
+						return [asc(sql`${albums.displayArtist} COLLATE NOCASE`)];
+
+					case "byYear":
+						return [
+							desc(albums.year),
+							asc(sql`${albums.title} COLLATE NOCASE`),
+						];
+
+					case "highest":
+					case "frequent":
+					case "recent":
+					case "starred":
+					case "byGenre":
+					default:
+						return [];
 				}
-				case "alphabeticalByArtist": {
-					const albumNames = allAlbums.map((album) => ({
-						album,
-						name:
-							getArtistString(
-								album.artists,
-								createAttributeRecord(album.attributes ?? []),
-							) ?? "Unknown Artist",
-					}));
-					albumNames.sort((a, b) => a.name.localeCompare(b.name));
-					allAlbums = albumNames.map(({ album }) => album);
-					break;
-				}
-				case "byYear": {
-					const { fromYear: fromYearString, toYear: toYearString } =
-						queryParams;
-					if (!fromYearString || !toYearString) {
-						throw new SubsonicError(
-							ErrCode.REQUIRED_PARAM_MISSING,
-							"Missing parameter",
-						);
-					}
+			};
 
-					let fromYear = parseInt(fromYearString);
-					let toYear = parseInt(toYearString);
-					if (isNaN(fromYear) || isNaN(toYear) || fromYear < 0 || toYear < 0) {
-						throw new SubsonicError(ErrCode.GENERIC, "Invalid year");
-					}
-					const reverse = fromYear > toYear;
-					if (reverse) {
-						[fromYear, toYear] = [toYear, fromYear];
-					}
-
-					const albumYears = allAlbums
-						.map((album) => ({
-							album,
-							year: getAttributeValue(album.attributes, "year", "integer"),
-						}))
-						.filter(({ year }) => year && year >= fromYear && year <= toYear);
-					albumYears.sort((a, b) =>
-						reverse ? b.year! - a.year! : a.year! - b.year!,
-					);
-
-					allAlbums = albumYears.map(({ album }) => album);
-					break;
-				}
-			}
+			const albumResponse = await db
+				.getClient()
+				.query.albums.findMany({
+					...queryConfig,
+					offset,
+					limit: size,
+					with: {
+						albumArtists: {
+							with: {
+								artist: true,
+							},
+						},
+					},
+				})
+				.execute();
 
 			const response = {
 				albumList2: {
-					album: allAlbums.slice(offset, offset + size).map(formatAlbum),
+					album: albumResponse.map(formatAlbum),
 				},
 			};
-
 			return response;
 		});
-	}
-
-	private async getAllAlbums(dataClient: DataClient) {
-		const albumUuids: string[] = [];
-		await dataClient.forEachAlbum((uuid) => {
-			albumUuids.push(uuid);
-		});
-		const albumResponses = await Promise.allSettled(
-			albumUuids.map((uuid) =>
-				dataClient.getAlbum(uuid, {
-					relations: {
-						identities: true,
-						attributes: true,
-						artists: {
-							attributes: true,
-						},
-					},
-				}),
-			),
-		);
-		return albumResponses
-			.filter((response) => response.status == "fulfilled")
-			.map((response) => response.value)
-			.filter((album) => !!album);
 	}
 }

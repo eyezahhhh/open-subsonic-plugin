@@ -1,3 +1,4 @@
 {
-	"plugin.open-subsonic.name": "OpenSubsonic"
+	"plugin.open-subsonic.name": "OpenSubsonic",
+	"task.plugin.open-subsonic.sync.name": "Sync OpenSubsonic"
 }

@@ -3,6 +3,10 @@ import { WebServer } from "./web-server.js";
 import { SubsonicConfigManager } from "./subsonic.config-manager.js";
 import { getPluginVersion } from "./util.js";
 import { SessionManager } from "./session-manager.js";
+import path from "path";
+import { createDatabaseClient } from "./db/client.js";
+import Database from "better-sqlite3";
+import { DatabaseManager } from "./db/database-manager.js";
 
 export default class Plugin implements PipeBomb.Plugin {
 	private api!: PipeBomb.PluginApiContext;
@@ -29,36 +33,56 @@ export default class Plugin implements PipeBomb.Plugin {
 
 		const playlistClient = this.api.getPlaylistClient();
 
-		getPluginVersion().then((pluginVersion) => {
-			const sessionManager = new SessionManager(this.api.getDataClient());
+		this.api.requestCacheDirectory().then((cacheDir) =>
+			getPluginVersion().then((pluginVersion) => {
+				const dbFile = path.join(cacheDir, "database.sqlite");
+				const dbClient = createDatabaseClient(dbFile);
 
-			const webServer = new WebServer(
-				this.logger,
-				configManager,
-				this.api.getDataClient(),
-				sessionManager,
-				playlistClient,
-				pluginVersion,
-			);
+				const database = new DatabaseManager(
+					dbClient,
+					this.api.getDataClient(),
+					this.logger,
+				);
 
-			const startServer = () => {
-				const port = configManager.getPort();
-				const currentPort = webServer.getPort();
+				this.api.registerTask({
+					id: "sync",
+					resumable: false,
+					run: async (ctx) => {
+						await database.sync(ctx.update);
+					},
+				});
 
-				if (currentPort && currentPort == port) {
-					return;
-				}
+				const sessionManager = new SessionManager(this.api.getDataClient());
 
-				if (port) {
-					webServer.listen(port);
-				} else {
-					webServer.close();
-				}
-			};
+				const webServer = new WebServer(
+					this.logger,
+					configManager,
+					this.api.getDataClient(),
+					sessionManager,
+					playlistClient,
+					database,
+					pluginVersion,
+				);
 
-			configManager.addListener(startServer);
-			startServer();
-		});
+				const startServer = () => {
+					const port = configManager.getPort();
+					const currentPort = webServer.getPort();
+
+					if (currentPort && currentPort == port) {
+						return;
+					}
+
+					if (port) {
+						webServer.listen(port);
+					} else {
+						webServer.close();
+					}
+				};
+
+				configManager.addListener(startServer);
+				startServer();
+			}),
+		);
 	}
 
 	disable() {}

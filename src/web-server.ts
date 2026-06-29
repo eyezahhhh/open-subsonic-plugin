@@ -11,6 +11,7 @@ import { MediaRetrievalWebModule } from "./web-module/media-retrieval.web-module
 import { AlbumWebModule } from "./web-module/album.web-module.js";
 import { UserWebModule } from "./web-module/user.web-module.js";
 import { PlaylistsWebModule } from "./web-module/playlists.web-module.js";
+import { DatabaseManager } from "./db/database-manager.js";
 
 export class WebServer {
 	private server: Server | null = null;
@@ -23,12 +24,14 @@ export class WebServer {
 		client: DataClient,
 		sessionManager: SessionManager,
 		playlistClient: PlaylistClient,
+		databaseManager: DatabaseManager,
 		pluginVersion: string,
 	) {
 		this.moduleManager = new WebModuleManager(
 			configManager,
 			logger,
 			client,
+			databaseManager,
 			pluginVersion,
 		);
 
