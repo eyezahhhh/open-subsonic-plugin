@@ -27,6 +27,8 @@ export default class Plugin implements PipeBomb.Plugin {
 		const configManager = new SubsonicConfigManager(authClient);
 		this.api.registerConfigManager(configManager);
 
+		const playlistClient = this.api.getPlaylistClient();
+
 		getPluginVersion().then((pluginVersion) => {
 			const sessionManager = new SessionManager(this.api.getDataClient());
 
@@ -35,6 +37,7 @@ export default class Plugin implements PipeBomb.Plugin {
 				configManager,
 				this.api.getDataClient(),
 				sessionManager,
+				playlistClient,
 				pluginVersion,
 			);
 

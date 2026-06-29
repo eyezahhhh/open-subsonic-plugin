@@ -155,3 +155,40 @@ export interface Child {
 	movements?: Movement[];
 	groupings?: string[];
 }
+
+export interface User {
+	username: string;
+	scrobblingEnabled: boolean;
+	maxBitRate?: number;
+	adminRole: boolean;
+	settingsRole: boolean;
+	downloadRole: boolean;
+	uploadRole: boolean;
+	playlistRole: boolean;
+	coverArtRole: boolean;
+	commentRole: boolean;
+	podcastRole: boolean;
+	streamRole: boolean;
+	jukeboxRole: boolean;
+	shareRole: boolean;
+	videoConversionRole: boolean;
+	avatarLastChanged?: string;
+	folder?: number[];
+}
+
+export interface Playlist {
+	id: string;
+	name: string;
+	comment?: string;
+	owner?: string;
+	public?: boolean;
+	songCount: number;
+	duration: number;
+	created: string;
+	changed: string;
+	coverArt?: string;
+	allowedUser?: string[];
+	readonly?: boolean;
+	validUntil?: string;
+	entry?: Child[];
+}
