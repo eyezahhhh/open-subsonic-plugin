@@ -46,6 +46,8 @@ export class WebModuleManager {
 						...queryParams
 					} = req.query;
 
+					console.log(page, req.query);
+
 					let userId: string | null = null;
 
 					if (!options.unauthenticated) {

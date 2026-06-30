@@ -113,5 +113,15 @@ export class AlbumWebModule extends WebModule {
 			};
 			return response;
 		});
+
+		endpoint("getStarred2", () => {
+			return {
+				starred2: {
+					artist: [],
+					album: [],
+					song: [],
+				},
+			};
+		});
 	}
 }

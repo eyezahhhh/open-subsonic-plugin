@@ -40,7 +40,6 @@ export class MediaRetrievalWebModule extends WebModule {
 			{
 				unauthenticated: true,
 				manualResponse: true,
-				noViewSuffix: true,
 			},
 		);
 		endpoint(

@@ -20,6 +20,11 @@ export class BrowsingWebModule extends WebModule {
 			};
 		});
 
+		endpoint("getMusicDirectory", async ({ param }) => {
+			const id = param("id");
+			console.log({ id });
+		});
+
 		endpoint("getArtists", async ({ db }) => {
 			const response: schema.Artist[] = await db
 				.getClient()
@@ -154,6 +159,14 @@ export class BrowsingWebModule extends WebModule {
 
 			return {
 				song: formatSong(song),
+			};
+		});
+
+		endpoint("getGenres", () => {
+			return {
+				genres: {
+					genre: [],
+				},
 			};
 		});
 	}

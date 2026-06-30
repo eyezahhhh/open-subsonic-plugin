@@ -192,3 +192,9 @@ export interface Playlist {
 	validUntil?: string;
 	entry?: Child[];
 }
+
+export interface SearchResult3 {
+	artist: ArtistID3[];
+	album: AlbumID3[];
+	song: Child[];
+}

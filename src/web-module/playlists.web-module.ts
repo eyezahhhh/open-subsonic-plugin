@@ -5,7 +5,7 @@ import { ErrCode, SubsonicError } from "../subsonic.error.js";
 import { formatPlaylist } from "../formatter.js";
 import { DatabaseManager } from "../db/database-manager.js";
 import { inArray } from "drizzle-orm";
-import * as Schema from "#db/schema.js";
+import * as Schema from "../db/schema.js";
 
 export class PlaylistsWebModule extends WebModule {
 	constructor(private readonly playlistClient: PlaylistClient) {

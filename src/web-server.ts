@@ -12,6 +12,8 @@ import { AlbumWebModule } from "./web-module/album.web-module.js";
 import { UserWebModule } from "./web-module/user.web-module.js";
 import { PlaylistsWebModule } from "./web-module/playlists.web-module.js";
 import { DatabaseManager } from "./db/database-manager.js";
+import { SearchingWebModule } from "./web-module/searching.web-module.js";
+import { BookmarksWebModule } from "./web-module/bookmarks.web-module.js";
 
 export class WebServer {
 	private server: Server | null = null;
@@ -42,6 +44,8 @@ export class WebServer {
 			new AlbumWebModule(),
 			new UserWebModule(),
 			new PlaylistsWebModule(playlistClient),
+			new SearchingWebModule(),
+			new BookmarksWebModule(),
 		);
 	}
 
@@ -75,6 +79,11 @@ export class WebServer {
 		// app.use("/assets", express.static(assetsDir));
 
 		this.moduleManager.bind(app);
+
+		app.use((req, res) => {
+			console.log(req.path);
+			res.status(500).send();
+		});
 
 		this.server = app.listen(port, (error) => {
 			if (error) {
