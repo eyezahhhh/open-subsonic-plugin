@@ -169,7 +169,15 @@ export class PlaylistsWebModule extends WebModule {
 
 			await this.addSongs(db, playlist.uuid, toAdd, userId);
 
-			// todo: allow changing playlist name
+			const name = param("name");
+			if (name) {
+				await this.playlistClient.updatePlaylistAttributes(playlist.uuid, [
+					{
+						key: "title",
+						value: name,
+					},
+				]);
+			}
 		});
 
 		endpoint("createPlaylist", async ({ userId, param, queryParams, db }) => {

@@ -2,7 +2,6 @@ import { SavedPlaylist } from "@sdk";
 import * as schema from "./db/schema.js";
 import { AlbumID3WithSongs, Artist, Child, Playlist } from "./types.js";
 import { createAttributeRecord, getAttributeValue } from "./util.js";
-import DBFormatter from "./db/db-formatter.js";
 
 export function formatArtist(artist: schema.Artist): Artist {
 	const response: Artist = {
@@ -162,13 +161,14 @@ export function formatPlaylist(
 ): Playlist {
 	const attributes = createAttributeRecord(playlist.attributes ?? []);
 
-	const tracks: Child[] = [];
 	let duration = 0;
 	if (songs) {
 		for (const song of songs) {
 			duration += song.duration ?? 0;
 		}
 	}
+
+	const coverArt = getAttributeValue(playlist.attributes, "thumb", "buffer");
 
 	return {
 		id: playlist.uuid,
@@ -177,9 +177,10 @@ export function formatPlaylist(
 		songCount: playlist.tracks?.length ?? 0,
 		duration: Math.round(duration),
 		created: playlist.dateCreated.toISOString(),
-		changed: playlist.dateCreated.toISOString(),
+		changed: playlist.dateModified.toISOString(),
 		allowedUser: playlist.owner ? [playlist.owner.username] : [],
 		owner: playlist.owner?.username ?? "",
 		entry: songs?.map((song) => formatSong(song)) ?? undefined,
+		coverArt: coverArt ? `${coverArt.uuid}.${coverArt.extension}` : "",
 	};
 }
