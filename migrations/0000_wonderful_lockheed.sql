@@ -4,6 +4,7 @@ CREATE TABLE `album_artists` (
 	`ordinal` integer,
 	`join_phrase` text,
 	`sync_id` text NOT NULL,
+	PRIMARY KEY(`album_id`, `artist_id`),
 	FOREIGN KEY (`album_id`) REFERENCES `albums`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`artist_id`) REFERENCES `artists`(`id`) ON UPDATE no action ON DELETE cascade
 );
@@ -12,6 +13,7 @@ CREATE TABLE `albums` (
 	`id` text PRIMARY KEY NOT NULL,
 	`sync_id` text NOT NULL,
 	`title` text NOT NULL,
+	`display_artist` text NOT NULL,
 	`cover_art` text,
 	`song_count` integer,
 	`duration` real,
@@ -35,12 +37,14 @@ CREATE TABLE `song_artists` (
 	`ordinal` integer,
 	`join_phrase` text,
 	`sync_id` text NOT NULL,
+	PRIMARY KEY(`song_id`, `artist_id`),
 	FOREIGN KEY (`song_id`) REFERENCES `songs`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`artist_id`) REFERENCES `artists`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
 CREATE TABLE `songs` (
 	`id` text PRIMARY KEY NOT NULL,
+	`original_uuid` text NOT NULL,
 	`sync_id` text NOT NULL,
 	`title` text NOT NULL,
 	`cover_art` text,
@@ -55,3 +59,5 @@ CREATE TABLE `songs` (
 	`track_number` integer,
 	`disc_number` integer
 );
+--> statement-breakpoint
+CREATE INDEX `songs_original_uuid_ifx` ON `songs` (`original_uuid`);

@@ -1,1 +1,0 @@
-ALTER TABLE `albums` ADD `display_artist` text NOT NULL;

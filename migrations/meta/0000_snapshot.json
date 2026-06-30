@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "455b5e46-846e-4c5d-9398-1f2f99019934",
+  "id": "d5bf6357-4d7d-4d25-a39c-5590f7f13d4f",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "album_artists": {
@@ -72,7 +72,15 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "album_artists_album_id_artist_id_pk": {
+          "columns": [
+            "album_id",
+            "artist_id"
+          ],
+          "name": "album_artists_album_id_artist_id_pk"
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
@@ -95,6 +103,13 @@
         },
         "title": {
           "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "display_artist": {
+          "name": "display_artist",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -269,7 +284,15 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "song_artists_song_id_artist_id_pk": {
+          "columns": [
+            "song_id",
+            "artist_id"
+          ],
+          "name": "song_artists_song_id_artist_id_pk"
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
@@ -280,6 +303,13 @@
           "name": "id",
           "type": "text",
           "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "original_uuid": {
+          "name": "original_uuid",
+          "type": "text",
+          "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
@@ -375,7 +405,15 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "songs_original_uuid_ifx": {
+          "name": "songs_original_uuid_ifx",
+          "columns": [
+            "original_uuid"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},

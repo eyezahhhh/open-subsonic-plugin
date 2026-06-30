@@ -153,18 +153,16 @@ export function getArtistString(
 	return "Unknown Artist";
 }
 
-export function formatPlaylist(playlist: SavedPlaylist): Playlist {
+export function formatPlaylist(
+	playlist: SavedPlaylist,
+	songs?: schema.Song[],
+): Playlist {
 	const attributes = createAttributeRecord(playlist.attributes ?? []);
 
 	const tracks: Child[] = [];
-	let containsTracks = false;
 	let duration = 0;
-	for (const { track } of playlist.tracks ?? []) {
-		if (track) {
-			const song = formatSong(DBFormatter.toSong(track)[0]!);
-
-			containsTracks = true;
-			tracks.push(song);
+	if (songs) {
+		for (const song of songs) {
 			duration += song.duration ?? 0;
 		}
 	}
@@ -179,6 +177,6 @@ export function formatPlaylist(playlist: SavedPlaylist): Playlist {
 		changed: playlist.dateCreated.toISOString(),
 		allowedUser: playlist.owner ? [playlist.owner.username] : [],
 		owner: playlist.owner?.username ?? "",
-		entry: containsTracks ? tracks : undefined,
+		entry: songs?.map((song) => formatSong(song)) ?? undefined,
 	};
 }

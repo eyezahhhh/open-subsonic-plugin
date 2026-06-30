@@ -11,8 +11,8 @@ export class MediaRetrievalWebModule extends WebModule {
 	bind(endpoint: CreateEndpointFunction): void {
 		endpoint(
 			"getCoverArt",
-			async ({ queryParams, response, dataClient }) => {
-				const { id } = queryParams;
+			async ({ param, response, dataClient }) => {
+				const id = param("id");
 				if (!id) {
 					response.status(400).send("Missing cover art ID");
 					return;
@@ -45,8 +45,8 @@ export class MediaRetrievalWebModule extends WebModule {
 		);
 		endpoint(
 			"stream",
-			async ({ queryParams, request, response, userId }) => {
-				const { id } = queryParams;
+			async ({ param, request, response, userId }) => {
+				const id = param("id");
 				if (!id) {
 					response.status(400).send("No stream ID provided");
 					return;

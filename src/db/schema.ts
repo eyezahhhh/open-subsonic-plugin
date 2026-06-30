@@ -5,6 +5,7 @@ import {
 	integer,
 	real,
 	primaryKey,
+	index,
 } from "drizzle-orm/sqlite-core";
 
 export const albums = sqliteTable("albums", {
@@ -49,22 +50,27 @@ export const albumArtists = sqliteTable(
 	],
 );
 
-export const songs = sqliteTable("songs", {
-	id: text("id").primaryKey(),
-	syncId: text("sync_id").notNull(),
-	title: text("title").notNull(),
-	coverArt: text("cover_art"),
-	duration: real("duration"),
-	bitrate: integer("bitrate"),
-	samplerate: integer("samplerate"),
-	channels: integer("channels"),
-	rating: real("rating"),
-	bpm: integer("bpm"),
-	musicBrainzId: text("musicbrainz_id"),
-	albumId: text("album_id"),
-	trackNumber: integer("track_number"),
-	discNumber: integer("disc_number"),
-});
+export const songs = sqliteTable(
+	"songs",
+	{
+		id: text("id").primaryKey(),
+		originalUuid: text("original_uuid").notNull(),
+		syncId: text("sync_id").notNull(),
+		title: text("title").notNull(),
+		coverArt: text("cover_art"),
+		duration: real("duration"),
+		bitrate: integer("bitrate"),
+		samplerate: integer("samplerate"),
+		channels: integer("channels"),
+		rating: real("rating"),
+		bpm: integer("bpm"),
+		musicBrainzId: text("musicbrainz_id"),
+		albumId: text("album_id"),
+		trackNumber: integer("track_number"),
+		discNumber: integer("disc_number"),
+	},
+	(table) => [index("songs_original_uuid_ifx").on(table.originalUuid)],
+);
 
 export const songArtists = sqliteTable(
 	"song_artists",

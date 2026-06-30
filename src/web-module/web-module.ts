@@ -3,6 +3,11 @@ import { Request, Response } from "express";
 import { SubsonicConfigManager } from "../subsonic.config-manager.js";
 import { DatabaseManager } from "../db/database-manager.js";
 
+export type ParamFunction = <T extends boolean = false>(
+	id: string,
+	multiple?: T,
+) => T extends true ? string[] : string | null;
+
 export type CreateEndpointFunction = <
 	U extends boolean = false,
 	M extends boolean = false,
@@ -11,7 +16,8 @@ export type CreateEndpointFunction = <
 	callback: (params: {
 		request: Request;
 		userId: U extends true ? null : string;
-		queryParams: Record<string, string | undefined>;
+		queryParams: Record<string, string[] | undefined>;
+		param: ParamFunction;
 		response: Response;
 		dataClient: DataClient;
 		db: DatabaseManager;

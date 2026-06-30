@@ -1,7 +1,6 @@
 import { formatAlbum, formatArtist, formatSong } from "../formatter.js";
 import { ErrCode, SubsonicError } from "../subsonic.error.js";
 import { ArtistID3, IndexID3 } from "../types.js";
-import { parseTrackId } from "../util.js";
 import { CreateEndpointFunction, WebModule } from "./web-module.js";
 import * as schema from "../db/schema.js";
 import { eq, sql } from "drizzle-orm";
@@ -61,8 +60,8 @@ export class BrowsingWebModule extends WebModule {
 			};
 		});
 
-		endpoint("getArtist", async ({ queryParams, db }) => {
-			const { id } = queryParams;
+		endpoint("getArtist", async ({ param, db }) => {
+			const id = param("id");
 			if (!id) {
 				throw new SubsonicError(ErrCode.NOT_FOUND, "Artist ID not specified");
 			}
@@ -95,8 +94,8 @@ export class BrowsingWebModule extends WebModule {
 			};
 		});
 
-		endpoint("getAlbum", async ({ queryParams, db }) => {
-			const { id } = queryParams;
+		endpoint("getAlbum", async ({ param, db }) => {
+			const id = param("id");
 			if (!id) {
 				throw new SubsonicError(ErrCode.NOT_FOUND, "Album ID not specified");
 			}
@@ -131,8 +130,8 @@ export class BrowsingWebModule extends WebModule {
 			};
 		});
 
-		endpoint("getSong", async ({ queryParams, db }) => {
-			const { id } = queryParams;
+		endpoint("getSong", async ({ param, db }) => {
+			const id = param("id");
 			if (!id) {
 				throw new SubsonicError(ErrCode.NOT_FOUND, "Track ID not specified");
 			}

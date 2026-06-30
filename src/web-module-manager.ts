@@ -101,10 +101,31 @@ export class WebModuleManager {
 						userId = userInfo.uuid;
 					}
 
+					const fullQueryParams: Record<string, string[] | undefined> = {};
+					for (const [key, value] of Object.entries(queryParams)) {
+						if (value) {
+							if (Array.isArray(value)) {
+								fullQueryParams[key] = value.map((s) => s.toString());
+							} else {
+								fullQueryParams[key] = [value.toString()];
+							}
+						}
+					}
+
 					const response = await callback({
 						request: req,
 						userId: userId as any,
-						queryParams: queryParams as Record<string, string | undefined>,
+						queryParams: fullQueryParams,
+						param: (id, multiple) => {
+							const values = fullQueryParams[id];
+							if (multiple) {
+								return values ?? [];
+							}
+							if (values?.length) {
+								return values[0];
+							}
+							return null as any;
+						},
 						response: res,
 						dataClient: this.dataClient,
 						configManager: this.configManager,

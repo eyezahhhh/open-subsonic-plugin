@@ -16,8 +16,10 @@ export class AlbumWebModule extends WebModule {
 	}
 
 	bind(endpoint: CreateEndpointFunction): void {
-		endpoint("getAlbumList2", async ({ queryParams, db }) => {
-			const { type, size: sizeString, offset: offsetString } = queryParams;
+		endpoint("getAlbumList2", async ({ param, db }) => {
+			const type = param("type");
+			const sizeString = param("size");
+			const offsetString = param("offset");
 			if (!type) {
 				throw new SubsonicError(
 					ErrCode.REQUIRED_PARAM_MISSING,

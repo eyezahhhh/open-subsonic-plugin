@@ -4,8 +4,8 @@ import { CreateEndpointFunction, WebModule } from "./web-module.js";
 
 export class UserWebModule extends WebModule {
 	bind(endpoint: CreateEndpointFunction): void {
-		endpoint("getUser", async ({ queryParams, userId, configManager }) => {
-			const { username } = queryParams;
+		endpoint("getUser", async ({ param, userId, configManager }) => {
+			const username = param("username");
 			if (!username) {
 				throw new SubsonicError(
 					ErrCode.REQUIRED_PARAM_MISSING,
