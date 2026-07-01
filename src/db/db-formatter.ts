@@ -13,8 +13,7 @@ namespace DBFormatter {
 		const songTemplate: Omit<Schema.Song, "syncId"> = {
 			id: `${track.pluginId}~${track.libraryId}~${track.trackId}`,
 			originalUuid: track.uuid,
-			title:
-				getAttributeValue(attributes, "title", "string") ?? "Unknown Track",
+			title: getAttributeValue(attributes, "title", "string") ?? track.title,
 			duration: getAttributeValue(attributes, "duration", "decimal") ?? 0,
 			coverArt: coverArt && `${coverArt.uuid}.${coverArt.extension}`,
 			bitrate: bitrate ? Math.round(bitrate / 1000) : undefined,
