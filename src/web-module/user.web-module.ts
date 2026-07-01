@@ -4,7 +4,7 @@ import { CreateEndpointFunction, WebModule } from "./web-module.js";
 
 export class UserWebModule extends WebModule {
 	bind(endpoint: CreateEndpointFunction): void {
-		endpoint("getUser", async ({ param, userId, configManager }) => {
+		endpoint("getUser", async ({ param, userId, userInfo }) => {
 			const username = param("username");
 			if (!username) {
 				throw new SubsonicError(
@@ -12,8 +12,6 @@ export class UserWebModule extends WebModule {
 					"Username not specified",
 				);
 			}
-
-			const userInfo = configManager.getUserInfo(username);
 
 			if (userId != userInfo?.uuid) {
 				throw new SubsonicError(

@@ -14,6 +14,7 @@ import { PlaylistsWebModule } from "./web-module/playlists.web-module.js";
 import { DatabaseManager } from "./db/database-manager.js";
 import { SearchingWebModule } from "./web-module/searching.web-module.js";
 import { BookmarksWebModule } from "./web-module/bookmarks.web-module.js";
+import { SubsonicUserConfigManager } from "./subsonic.user-config-manager.js";
 
 export class WebServer {
 	private server: Server | null = null;
@@ -22,7 +23,7 @@ export class WebServer {
 
 	constructor(
 		private readonly logger: Logger,
-		configManager: SubsonicConfigManager,
+		authConfigManager: SubsonicUserConfigManager,
 		client: DataClient,
 		sessionManager: SessionManager,
 		playlistClient: PlaylistClient,
@@ -30,7 +31,7 @@ export class WebServer {
 		pluginVersion: string,
 	) {
 		this.moduleManager = new WebModuleManager(
-			configManager,
+			authConfigManager,
 			logger,
 			client,
 			databaseManager,

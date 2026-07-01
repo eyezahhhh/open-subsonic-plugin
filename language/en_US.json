@@ -1,4 +1,5 @@
 {
 	"plugin.open-subsonic.name": "OpenSubsonic",
-	"task.plugin.open-subsonic.sync.name": "Sync OpenSubsonic"
+	"task.plugin.open-subsonic.sync.name": "Sync OpenSubsonic",
+	"plugin.open-subsonic.user-config.auth.name": "Authentication"
 }

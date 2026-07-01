@@ -2,6 +2,10 @@ import { DataClient } from "@sdk";
 import { Request, Response } from "express";
 import { SubsonicConfigManager } from "../subsonic.config-manager.js";
 import { DatabaseManager } from "../db/database-manager.js";
+import {
+	SubsonicUserConfigManager,
+	UserInfo,
+} from "../subsonic.user-config-manager.js";
 
 export type ParamFunction = <T extends boolean = false>(
 	id: string,
@@ -16,12 +20,13 @@ export type CreateEndpointFunction = <
 	callback: (params: {
 		request: Request;
 		userId: U extends true ? null : string;
+		userInfo: U extends true ? null : UserInfo;
 		queryParams: Record<string, string[] | undefined>;
 		param: ParamFunction;
 		response: Response;
 		dataClient: DataClient;
 		db: DatabaseManager;
-		configManager: SubsonicConfigManager;
+		// authConfigManager: SubsonicUserConfigManager;
 	}) => M extends true
 		? void
 		: Record<string, any> | Promise<Record<string, any>>,

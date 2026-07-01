@@ -5,8 +5,8 @@ import { getPluginVersion } from "./util.js";
 import { SessionManager } from "./session-manager.js";
 import path from "path";
 import { createDatabaseClient } from "./db/client.js";
-import Database from "better-sqlite3";
 import { DatabaseManager } from "./db/database-manager.js";
+import { SubsonicUserConfigManager } from "./subsonic.user-config-manager.js";
 
 export default class Plugin implements PipeBomb.Plugin {
 	private api!: PipeBomb.PluginApiContext;
@@ -28,8 +28,10 @@ export default class Plugin implements PipeBomb.Plugin {
 			return;
 		}
 
-		const configManager = new SubsonicConfigManager(authClient);
+		const configManager = new SubsonicConfigManager();
 		this.api.registerConfigManager(configManager);
+		const userConfigManager = new SubsonicUserConfigManager(authClient);
+		this.api.registerUserConfigManager("auth", userConfigManager);
 
 		const playlistClient = this.api.getPlaylistClient();
 
@@ -56,7 +58,7 @@ export default class Plugin implements PipeBomb.Plugin {
 
 				const webServer = new WebServer(
 					this.logger,
-					configManager,
+					userConfigManager,
 					this.api.getDataClient(),
 					sessionManager,
 					playlistClient,

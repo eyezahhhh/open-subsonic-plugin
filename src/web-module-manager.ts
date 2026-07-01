@@ -5,12 +5,16 @@ import * as crypto from "crypto";
 import { DataClient, Logger } from "@sdk";
 import { CreateEndpointFunction, WebModule } from "./web-module/web-module.js";
 import { DatabaseManager } from "./db/database-manager.js";
+import {
+	SubsonicUserConfigManager,
+	UserInfo,
+} from "./subsonic.user-config-manager.js";
 
 export class WebModuleManager {
 	private readonly modules = new Set<WebModule>();
 
 	constructor(
-		private readonly configManager: SubsonicConfigManager,
+		private readonly authConfigManager: SubsonicUserConfigManager,
 		private readonly logger: Logger,
 		private readonly dataClient: DataClient,
 		private readonly databaseManager: DatabaseManager,
@@ -49,6 +53,7 @@ export class WebModuleManager {
 					console.log(page, req.query);
 
 					let userId: string | null = null;
+					let userInfo: UserInfo | null = null;
 
 					if (!options.unauthenticated) {
 						if (!username || typeof username !== "string") {
@@ -58,7 +63,7 @@ export class WebModuleManager {
 							);
 						}
 
-						const userInfo = this.configManager.getUserInfo(username);
+						userInfo = this.authConfigManager.getUserInfo(username);
 						const actualPassword = userInfo?.password;
 						if (!actualPassword) {
 							throw new SubsonicError(
@@ -100,7 +105,7 @@ export class WebModuleManager {
 							);
 						}
 
-						userId = userInfo.uuid;
+						userId = userInfo!.uuid;
 					}
 
 					const fullQueryParams: Record<string, string[] | undefined> = {};
@@ -117,6 +122,7 @@ export class WebModuleManager {
 					const response = await callback({
 						request: req,
 						userId: userId as any,
+						userInfo: userInfo as any,
 						queryParams: fullQueryParams,
 						param: (id, multiple) => {
 							const values = fullQueryParams[id];
@@ -130,7 +136,7 @@ export class WebModuleManager {
 						},
 						response: res,
 						dataClient: this.dataClient,
-						configManager: this.configManager,
+						// configManager: this.configManager,
 						db: this.databaseManager,
 					});
 					if (!options.manualResponse) {
