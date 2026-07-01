@@ -68,6 +68,7 @@ export const songs = sqliteTable(
 		albumId: text("album_id"),
 		trackNumber: integer("track_number"),
 		discNumber: integer("disc_number"),
+		dateCreated: integer("date_created"),
 	},
 	(table) => [index("songs_original_uuid_ifx").on(table.originalUuid)],
 );

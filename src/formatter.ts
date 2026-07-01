@@ -122,6 +122,7 @@ export function formatSong(song: Omit<schema.Song, "syncId">): Child {
 		album: song.album?.title ?? "",
 		albumId: song.albumId ?? "",
 		contentType: "audio/mpeg",
+		created: new Date(song.dateCreated ?? 0).toISOString(),
 		// parent: song.albumId ?? "",
 		// size: 0,
 	};

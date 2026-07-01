@@ -1,0 +1,1 @@
+ALTER TABLE `songs` ADD `date_created` integer;

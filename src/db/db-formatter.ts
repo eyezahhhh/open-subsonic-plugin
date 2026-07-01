@@ -21,6 +21,7 @@ namespace DBFormatter {
 			samplerate: getAttributeValue(attributes, "samplerate", "integer"),
 			channels: getAttributeValue(attributes, "channels", "integer"),
 			rating: getAttributeValue(attributes, "rating", "decimal"),
+			dateCreated: track.dateAdded.getTime(),
 		};
 
 		if (track.albums?.length) {
