@@ -8,6 +8,11 @@ import {
 	index,
 } from "drizzle-orm/sqlite-core";
 
+export const genres = sqliteTable("genres", {
+	name: text("name").primaryKey(),
+	syncId: text("sync_id").notNull(),
+});
+
 export const albums = sqliteTable("albums", {
 	id: text("id").primaryKey(),
 	syncId: text("sync_id").notNull(),
@@ -20,6 +25,22 @@ export const albums = sqliteTable("albums", {
 	year: integer("year"),
 	musicBrainzId: text("musicbrainz_id"),
 });
+
+export const albumGenres = sqliteTable(
+	"album_genres",
+	{
+		name: text("name").references(() => genres.name),
+		albumId: text("album_id").references(() => albums.id, {
+			onDelete: "cascade",
+		}),
+		syncId: text("sync_id").notNull(),
+	},
+	(table) => [
+		primaryKey({
+			columns: [table.name, table.albumId],
+		}),
+	],
+);
 
 export const artists = sqliteTable("artists", {
 	id: text("id").primaryKey(),
@@ -73,6 +94,22 @@ export const songs = sqliteTable(
 	(table) => [index("songs_original_uuid_ifx").on(table.originalUuid)],
 );
 
+export const songGenres = sqliteTable(
+	"song_genres",
+	{
+		name: text("name").references(() => genres.name),
+		songId: text("song_id").references(() => songs.id, {
+			onDelete: "cascade",
+		}),
+		syncId: text("sync_id").notNull(),
+	},
+	(table) => [
+		primaryKey({
+			columns: [table.name, table.songId],
+		}),
+	],
+);
+
 export const songArtists = sqliteTable(
 	"song_artists",
 	{
@@ -90,6 +127,14 @@ export const songArtists = sqliteTable(
 export const albumsRelations = relations(albums, ({ many }) => ({
 	albumArtists: many(albumArtists),
 	songs: many(songs),
+	albumGenres: many(albumGenres),
+}));
+export const albumGenresRelations = relations(albumGenres, ({ one }) => ({
+	album: one(albums, {
+		fields: [albumGenres.albumId],
+		references: [albums.id],
+	}),
+	genre: one(genres, { fields: [albumGenres.name], references: [genres.name] }),
 }));
 
 export const artistsRelations = relations(artists, ({ many }) => ({
@@ -110,6 +155,11 @@ export const albumArtistsRelations = relations(albumArtists, ({ one }) => ({
 export const songsRelations = relations(songs, ({ one, many }) => ({
 	album: one(albums, { fields: [songs.albumId], references: [albums.id] }),
 	songArtists: many(songArtists),
+	songGenres: many(songGenres),
+}));
+export const songGenresRelations = relations(songGenres, ({ one }) => ({
+	song: one(songs, { fields: [songGenres.songId], references: [songs.id] }),
+	genre: one(genres, { fields: [songGenres.name], references: [genres.name] }),
 }));
 
 export const songArtistsRelations = relations(songArtists, ({ one }) => ({
@@ -120,10 +170,17 @@ export const songArtistsRelations = relations(songArtists, ({ one }) => ({
 	}),
 }));
 
+export const genresRelations = relations(genres, ({ many }) => ({
+	songGenres: many(songGenres),
+	albumGenres: many(albumGenres),
+}));
+
 export type Album = InferInsertModel<typeof albums> & {
 	albumArtists?: AlbumArtist[] | null;
 	songs?: Song[] | null;
+	albumGenres?: AlbumGenre[] | null;
 };
+export type AlbumGenre = InferInsertModel<typeof albumGenres>;
 export type Artist = InferInsertModel<typeof artists> & {
 	albumArtists?: AlbumArtist[] | null;
 };
@@ -134,8 +191,14 @@ export type AlbumArtist = InferInsertModel<typeof albumArtists> & {
 export type Song = InferInsertModel<typeof songs> & {
 	songArtists?: SongArtist[] | null;
 	album?: Album | null;
+	songGenres?: SongGenre[] | null;
 };
+export type SongGenre = InferInsertModel<typeof songGenres>;
 export type SongArtist = InferInsertModel<typeof songArtists> & {
 	song?: Song | null;
 	artist?: Artist | null;
+};
+export type Genre = InferInsertModel<typeof genres> & {
+	songGenres?: SongGenre[] | null;
+	albumGenres?: AlbumGenre[] | null;
 };

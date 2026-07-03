@@ -3,7 +3,7 @@ import { ErrCode, SubsonicError } from "../subsonic.error.js";
 import { ArtistID3, IndexID3 } from "../types.js";
 import { CreateEndpointFunction, WebModule } from "./web-module.js";
 import * as schema from "../db/schema.js";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, asc } from "drizzle-orm";
 
 export class BrowsingWebModule extends WebModule {
 	bind(endpoint: CreateEndpointFunction): void {
@@ -22,7 +22,7 @@ export class BrowsingWebModule extends WebModule {
 
 		endpoint("getMusicDirectory", async ({ param }) => {
 			const id = param("id");
-			console.log({ id });
+			// console.log({ id });
 		});
 
 		endpoint("getArtists", async ({ db }) => {
@@ -121,8 +121,10 @@ export class BrowsingWebModule extends WebModule {
 								},
 							},
 							album: true,
+							songGenres: true,
 						},
 					},
+					albumGenres: true,
 				},
 			});
 
@@ -150,6 +152,7 @@ export class BrowsingWebModule extends WebModule {
 						},
 					},
 					album: true,
+					songGenres: true,
 				},
 			});
 
@@ -162,10 +165,45 @@ export class BrowsingWebModule extends WebModule {
 			};
 		});
 
-		endpoint("getGenres", () => {
+		endpoint("getGenres", async ({ db }) => {
+			const albumCountsSq = db
+				.getClient()
+				.select({
+					genreName: schema.albumGenres.name,
+					count: sql<number>`count(*)`.as("album_count"),
+				})
+				.from(schema.albumGenres)
+				.groupBy(schema.albumGenres.name)
+				.as("album_counts_sq");
+
+			const songCountsSq = db
+				.getClient()
+				.select({
+					genreName: schema.songGenres.name,
+					count: sql<number>`count(*)`.as("song_count"),
+				})
+				.from(schema.songGenres)
+				.groupBy(schema.songGenres.name)
+				.as("song_counts_sq");
+
+			const genres = await db
+				.getClient()
+				.select({
+					value: schema.genres.name,
+					albumCount: sql<number>`coalesce(${albumCountsSq.count}, 0)`,
+					songCount: sql<number>`coalesce(${songCountsSq.count}, 0)`,
+				})
+				.from(schema.genres)
+				.leftJoin(
+					albumCountsSq,
+					eq(schema.genres.name, albumCountsSq.genreName),
+				)
+				.leftJoin(songCountsSq, eq(schema.genres.name, songCountsSq.genreName))
+				.orderBy(asc(sql`${schema.genres.name} collate nocase`));
+
 			return {
 				genres: {
-					genre: [],
+					genre: genres,
 				},
 			};
 		});

@@ -46,6 +46,7 @@ export class PlaylistsWebModule extends WebModule {
 							artist: true,
 						},
 					},
+					songGenres: true,
 				},
 			});
 

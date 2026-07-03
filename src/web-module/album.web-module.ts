@@ -1,8 +1,9 @@
 import { ErrCode, SubsonicError } from "../subsonic.error.js";
 import { CreateEndpointFunction, WebModule } from "./web-module.js";
-import { sql } from "drizzle-orm";
-import { formatAlbum } from "../formatter.js";
+import { sql, exists, and, eq } from "drizzle-orm";
+import { formatAlbum, formatSong } from "../formatter.js";
 import { randomUUID } from "crypto";
+import * as Schema from "../db/schema.js";
 
 export class AlbumWebModule extends WebModule {
 	private randomSeed = randomUUID();
@@ -60,6 +61,24 @@ export class AlbumWebModule extends WebModule {
 			const albumsQuery = db.getClient().query.albums;
 			const queryConfig: Parameters<typeof albumsQuery.findMany>[0] = {};
 
+			if (type == "byGenre") {
+				const genre = param("genre");
+				if (genre) {
+					queryConfig.where = exists(
+						db
+							.getClient()
+							.select()
+							.from(Schema.albumGenres)
+							.where(
+								and(
+									eq(Schema.albumGenres.albumId, Schema.albums.id),
+									eq(Schema.albumGenres.name, genre),
+								),
+							),
+					);
+				}
+			}
+
 			queryConfig.orderBy = (albums, { asc, desc }) => {
 				switch (type) {
 					case "random":
@@ -102,6 +121,7 @@ export class AlbumWebModule extends WebModule {
 								artist: true,
 							},
 						},
+						albumGenres: true,
 					},
 				})
 				.execute();
@@ -120,6 +140,64 @@ export class AlbumWebModule extends WebModule {
 					artist: [],
 					album: [],
 					song: [],
+				},
+			};
+		});
+
+		endpoint("getSongsByGenre", async ({ param, db }) => {
+			const genre = param("genre");
+			if (!genre) {
+				throw new SubsonicError(
+					ErrCode.REQUIRED_PARAM_MISSING,
+					"Genre not specified",
+				);
+			}
+
+			let count = 10;
+			const countString = Number(param("count"));
+			if (
+				Number.isInteger(countString) &&
+				countString > 0 &&
+				countString <= 500
+			) {
+				count = countString;
+			}
+
+			let offset = 0;
+			const offsetString = Number(param("offset"));
+			if (Number.isInteger(offsetString) && offsetString > 0) {
+				offset = offsetString;
+			}
+
+			const songs = await db.getClient().query.songs.findMany({
+				where: exists(
+					db
+						.getClient()
+						.select()
+						.from(Schema.songGenres)
+						.where(
+							and(
+								eq(Schema.songGenres.songId, Schema.songs.id),
+								eq(Schema.songGenres.name, genre),
+							),
+						),
+				),
+				with: {
+					album: true,
+					songArtists: {
+						with: {
+							artist: true,
+						},
+					},
+					songGenres: true,
+				},
+				limit: count,
+				offset,
+			});
+
+			return {
+				songsByGenre: {
+					song: songs.map(formatSong),
 				},
 			};
 		});

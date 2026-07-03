@@ -82,7 +82,7 @@ export class WebServer {
 		this.moduleManager.bind(app);
 
 		app.use((req, res) => {
-			console.log(req.path);
+			// console.log(req.path);
 			res.status(500).send();
 		});
 

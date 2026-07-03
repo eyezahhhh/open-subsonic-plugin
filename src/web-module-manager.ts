@@ -50,7 +50,7 @@ export class WebModuleManager {
 						...queryParams
 					} = req.query;
 
-					console.log(page, req.query);
+					// console.log(page, req.query);
 
 					let userId: string | null = null;
 					let userInfo: UserInfo | null = null;

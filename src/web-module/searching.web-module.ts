@@ -76,6 +76,7 @@ export class SearchingWebModule extends WebModule {
 								albumArtists: true,
 							},
 						},
+						songGenres: true,
 					},
 					limit: songCount,
 					offset: songOffset,

@@ -1,9 +1,9 @@
-import { DataClient, Logger } from "@sdk";
+import { DataClient, Logger, SavedAttribute } from "@sdk";
 import { DBClient } from "./client.js";
 import { randomUUID } from "crypto";
 import Formatter from "./db-formatter.js";
 import * as Schema from "./schema.js";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { eq, ne, sql } from "drizzle-orm";
 
 export class DatabaseManager {
 	private syncId = randomUUID();
@@ -23,6 +23,9 @@ export class DatabaseManager {
 
 		const syncId = randomUUID();
 		this.syncId = syncId;
+
+		const completedGenres = new Set<string>();
+		let genreChunk: Schema.Genre[] = [];
 
 		const totalArtists = await this.dataClient.getArtistCount();
 		let completedArtists = 0;
@@ -93,6 +96,7 @@ export class DatabaseManager {
 		let completedAlbums = 0;
 		let albumChunk: Schema.Album[] = [];
 		let albumArtistChunk: Schema.AlbumArtist[] = [];
+		let albumGenreChunk: Schema.AlbumGenre[] = [];
 		const insertAlbums = async () => {
 			if (albumChunk.length) {
 				await this.db
@@ -129,6 +133,33 @@ export class DatabaseManager {
 						},
 					});
 				albumArtistChunk = [];
+			}
+			if (genreChunk.length) {
+				await this.db
+					.insert(Schema.genres)
+					.values(genreChunk)
+					.onConflictDoUpdate({
+						target: [Schema.genres.name],
+						set: {
+							name: sql`excluded.name`,
+							syncId: sql`excluded.sync_id`,
+						},
+					});
+				genreChunk = [];
+			}
+			if (albumGenreChunk.length) {
+				await this.db
+					.insert(Schema.albumGenres)
+					.values(albumGenreChunk)
+					.onConflictDoUpdate({
+						target: [Schema.albumGenres.albumId, Schema.albumGenres.name],
+						set: {
+							albumId: sql`excluded.album_id`,
+							name: sql`excluded.name`,
+							syncId: sql`excluded.sync_id`,
+						},
+					});
+				albumGenreChunk = [];
 			}
 		};
 
@@ -176,7 +207,33 @@ export class DatabaseManager {
 						albumArtistChunk.push(...entities);
 					}
 
-					if (albumChunk.length >= 100 || albumArtistChunk.length >= 100) {
+					const genres = new Set<string>();
+					for (const attribute of album.attributes ?? []) {
+						if (attribute.key == "genre" && attribute.type == "string") {
+							for (const value of attribute.values) {
+								genres.add(value);
+							}
+						}
+					}
+
+					for (const genre of genres) {
+						if (!completedGenres.has(genre)) {
+							completedGenres.add(genre);
+							genreChunk.push({ name: genre, syncId });
+						}
+						albumGenreChunk.push({
+							albumId: album.uuid,
+							name: genre,
+							syncId,
+						});
+					}
+
+					if (
+						albumChunk.length >= 100 ||
+						albumArtistChunk.length >= 100 ||
+						albumGenreChunk.length >= 100 ||
+						genreChunk.length >= 100
+					) {
 						await insertAlbums();
 					}
 				}
@@ -203,6 +260,7 @@ export class DatabaseManager {
 
 			let songChunk: Schema.Song[] = [];
 			let songArtistChunk: Schema.SongArtist[] = [];
+			let songGenreChunk: Schema.SongGenre[] = [];
 			const insertTracks = async () => {
 				if (songChunk.length) {
 					await this.db
@@ -241,6 +299,33 @@ export class DatabaseManager {
 							},
 						});
 					songArtistChunk = [];
+				}
+				if (genreChunk.length) {
+					await this.db
+						.insert(Schema.genres)
+						.values(genreChunk)
+						.onConflictDoUpdate({
+							target: [Schema.genres.name],
+							set: {
+								name: sql`excluded.name`,
+								syncId: sql`excluded.sync_id`,
+							},
+						});
+					genreChunk = [];
+				}
+				if (songGenreChunk.length) {
+					await this.db
+						.insert(Schema.songGenres)
+						.values(songGenreChunk)
+						.onConflictDoUpdate({
+							target: [Schema.songGenres.songId, Schema.songGenres.name],
+							set: {
+								songId: sql`excluded.song_id`,
+								name: sql`excluded.name`,
+								syncId: sql`excluded.sync_id`,
+							},
+						});
+					songGenreChunk = [];
 				}
 			};
 
@@ -301,7 +386,35 @@ export class DatabaseManager {
 								}
 							}
 
-							if (songChunk.length >= 100 || songArtistChunk.length >= 100) {
+							const genres = new Set<string>();
+							for (const attribute of track.attributes ?? []) {
+								if (attribute.key == "genre" && attribute.type == "string") {
+									for (const value of attribute.values) {
+										genres.add(value);
+									}
+								}
+							}
+
+							for (const genre of genres) {
+								if (!completedGenres.has(genre)) {
+									completedGenres.add(genre);
+									genreChunk.push({ name: genre, syncId });
+								}
+								for (const song of songs) {
+									songGenreChunk.push({
+										songId: song.id,
+										name: genre,
+										syncId,
+									});
+								}
+							}
+
+							if (
+								songChunk.length >= 100 ||
+								songArtistChunk.length >= 100 ||
+								songGenreChunk.length >= 100 ||
+								genreChunk.length >= 100
+							) {
 								await insertTracks();
 							}
 						}
@@ -332,5 +445,12 @@ export class DatabaseManager {
 		await this.db
 			.delete(Schema.songArtists)
 			.where(ne(Schema.songArtists.syncId, syncId));
+		await this.db.delete(Schema.genres).where(ne(Schema.genres.syncId, syncId));
+		await this.db
+			.delete(Schema.albumGenres)
+			.where(ne(Schema.albumGenres.syncId, syncId));
+		await this.db
+			.delete(Schema.songGenres)
+			.where(ne(Schema.songGenres.syncId, syncId));
 	}
 }

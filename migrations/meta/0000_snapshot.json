@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d5bf6357-4d7d-4d25-a39c-5590f7f13d4f",
+  "id": "189bef9d-c0dc-4f62-ad65-8a69334acfb3",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "album_artists": {
@@ -79,6 +79,72 @@
             "artist_id"
           ],
           "name": "album_artists_album_id_artist_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "album_genres": {
+      "name": "album_genres",
+      "columns": {
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "album_id": {
+          "name": "album_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "sync_id": {
+          "name": "sync_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "album_genres_name_genres_name_fk": {
+          "name": "album_genres_name_genres_name_fk",
+          "tableFrom": "album_genres",
+          "tableTo": "genres",
+          "columnsFrom": [
+            "name"
+          ],
+          "columnsTo": [
+            "name"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "album_genres_album_id_albums_id_fk": {
+          "name": "album_genres_album_id_albums_id_fk",
+          "tableFrom": "album_genres",
+          "tableTo": "albums",
+          "columnsFrom": [
+            "album_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "album_genres_name_album_id_pk": {
+          "columns": [
+            "name",
+            "album_id"
+          ],
+          "name": "album_genres_name_album_id_pk"
         }
       },
       "uniqueConstraints": {},
@@ -216,6 +282,30 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "genres": {
+      "name": "genres",
+      "columns": {
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sync_id": {
+          "name": "sync_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "song_artists": {
       "name": "song_artists",
       "columns": {
@@ -291,6 +381,72 @@
             "artist_id"
           ],
           "name": "song_artists_song_id_artist_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "song_genres": {
+      "name": "song_genres",
+      "columns": {
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "song_id": {
+          "name": "song_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "sync_id": {
+          "name": "sync_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "song_genres_name_genres_name_fk": {
+          "name": "song_genres_name_genres_name_fk",
+          "tableFrom": "song_genres",
+          "tableTo": "genres",
+          "columnsFrom": [
+            "name"
+          ],
+          "columnsTo": [
+            "name"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "song_genres_song_id_songs_id_fk": {
+          "name": "song_genres_song_id_songs_id_fk",
+          "tableFrom": "song_genres",
+          "tableTo": "songs",
+          "columnsFrom": [
+            "song_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "song_genres_name_song_id_pk": {
+          "columns": [
+            "name",
+            "song_id"
+          ],
+          "name": "song_genres_name_song_id_pk"
         }
       },
       "uniqueConstraints": {},
@@ -399,6 +555,13 @@
         },
         "disc_number": {
           "name": "disc_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "date_created": {
+          "name": "date_created",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,

@@ -62,6 +62,9 @@ export function formatAlbum(album: schema.Album): AlbumID3WithSongs {
 		artists: album.albumArtists?.map((link) =>
 			link.artist ? formatArtist(link.artist) : blankArtist(link.artistId!),
 		),
+		genres: album.albumGenres?.map((genre) => ({
+			name: genre.name!,
+		})),
 	};
 
 	if (album.songs) {
@@ -123,6 +126,9 @@ export function formatSong(song: Omit<schema.Song, "syncId">): Child {
 		albumId: song.albumId ?? "",
 		contentType: "audio/mpeg",
 		created: new Date(song.dateCreated ?? 0).toISOString(),
+		genres: song.songGenres?.map((genre) => ({
+			name: genre.name!,
+		})),
 		// parent: song.albumId ?? "",
 		// size: 0,
 	};
