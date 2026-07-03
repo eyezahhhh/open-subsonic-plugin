@@ -3,7 +3,7 @@ import { DBClient } from "./client.js";
 import { randomUUID } from "crypto";
 import Formatter from "./db-formatter.js";
 import * as Schema from "./schema.js";
-import { ne, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 
 export class DatabaseManager {
 	private syncId = randomUUID();
@@ -18,7 +18,7 @@ export class DatabaseManager {
 		return this.db;
 	}
 
-	async sync(onProgress: (fraction: number) => void) {
+	async sync(onlyNew: boolean, onProgress: (fraction: number) => void) {
 		const STEPS = 3;
 
 		const syncId = randomUUID();
@@ -28,10 +28,7 @@ export class DatabaseManager {
 		let completedArtists = 0;
 		let artistChunk: Schema.Artist[] = [];
 		const insertArtists = async () => {
-			console.log("CHECKING ARTIST LENGTH");
-
 			if (artistChunk.length) {
-				console.log(`INSERTING ${artistChunk.length} ARTISTS`);
 				await this.db
 					.insert(Schema.artists)
 					.values(artistChunk)
@@ -51,6 +48,18 @@ export class DatabaseManager {
 
 		await this.dataClient.forEachArtist(async (artistUuid) => {
 			try {
+				if (onlyNew) {
+					const exists = await this.db.query.artists.findFirst({
+						where: eq(Schema.artists.id, artistUuid),
+						columns: {
+							id: true,
+						},
+					});
+					if (exists) {
+						return;
+					}
+				}
+
 				const artist = await this.dataClient.getArtist(artistUuid, {
 					relations: {
 						albums: true,
@@ -85,11 +94,7 @@ export class DatabaseManager {
 		let albumChunk: Schema.Album[] = [];
 		let albumArtistChunk: Schema.AlbumArtist[] = [];
 		const insertAlbums = async () => {
-			console.log("CHECKING ALBUM LENGTH");
-
 			if (albumChunk.length) {
-				console.log(`INSERTING ${albumChunk.length} ALBUMS`);
-
 				await this.db
 					.insert(Schema.albums)
 					.values(albumChunk)
@@ -110,8 +115,6 @@ export class DatabaseManager {
 				albumChunk = [];
 			}
 			if (albumArtistChunk.length) {
-				console.log(`INSERTING ${albumArtistChunk.length} ALBUM ARTISTS`);
-
 				await this.db
 					.insert(Schema.albumArtists)
 					.values(albumArtistChunk)
@@ -131,6 +134,18 @@ export class DatabaseManager {
 
 		await this.dataClient.forEachAlbum(async (albumUuid) => {
 			try {
+				if (onlyNew) {
+					const exists = await this.db.query.albums.findFirst({
+						where: eq(Schema.albums.id, albumUuid),
+						columns: {
+							id: true,
+						},
+					});
+					if (exists) {
+						return;
+					}
+				}
+
 				const album = await this.dataClient.getAlbum(albumUuid, {
 					relations: {
 						artists: {
@@ -189,11 +204,7 @@ export class DatabaseManager {
 			let songChunk: Schema.Song[] = [];
 			let songArtistChunk: Schema.SongArtist[] = [];
 			const insertTracks = async () => {
-				console.log("CHECKING SONG LENGTH");
-
 				if (songChunk.length) {
-					console.log(`INSERTING ${songChunk.length} SONGS`);
-
 					await this.db
 						.insert(Schema.songs)
 						.values(songChunk)
@@ -218,8 +229,6 @@ export class DatabaseManager {
 					songChunk = [];
 				}
 				if (songArtistChunk.length) {
-					console.log(`INSERTING ${songArtistChunk.length} SONG ARTISTS`);
-
 					await this.db
 						.insert(Schema.songArtists)
 						.values(songArtistChunk)
@@ -239,8 +248,20 @@ export class DatabaseManager {
 			await this.dataClient.forEachTrack(
 				pluginId,
 				libraryId,
-				async (trackId) => {
+				async (trackId, trackUuid) => {
 					try {
+						if (onlyNew) {
+							const exists = await this.db.query.songs.findFirst({
+								where: eq(Schema.songs.originalUuid, trackUuid),
+								columns: {
+									id: true,
+								},
+							});
+							if (exists) {
+								return;
+							}
+						}
+
 						const track = await this.dataClient.getTrack(
 							pluginId,
 							libraryId,

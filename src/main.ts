@@ -46,11 +46,12 @@ export default class Plugin implements PipeBomb.Plugin {
 					this.logger,
 				);
 
-				this.api.registerTask({
+				this.api.registerTask<"all" | "new">({
 					id: "sync",
 					resumable: false,
-					run: async (ctx) => {
-						await database.sync(ctx.update);
+					getSubTasks: () => ["all", "new"],
+					run: async (ctx, subTaskId) => {
+						await database.sync(subTaskId == "new", ctx.update);
 					},
 				});
 
