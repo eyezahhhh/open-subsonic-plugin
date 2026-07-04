@@ -82,6 +82,7 @@ export class WebServer {
 		this.moduleManager.bind(app);
 
 		app.use((req, res) => {
+			this.logger.debug("Unhandled request:", req.url);
 			// console.log(req.path);
 			res.status(500).send();
 		});

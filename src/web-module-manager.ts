@@ -50,6 +50,8 @@ export class WebModuleManager {
 						...queryParams
 					} = req.query;
 
+					this.logger.debug("Handled request:", req.url);
+
 					// console.log(page, req.query);
 
 					let userId: string | null = null;
