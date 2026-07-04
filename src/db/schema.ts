@@ -39,6 +39,7 @@ export const albumGenres = sqliteTable(
 		primaryKey({
 			columns: [table.name, table.albumId],
 		}),
+		index("album_genres_album_id_idx").on(table.albumId),
 	],
 );
 
@@ -91,7 +92,7 @@ export const songs = sqliteTable(
 		discNumber: integer("disc_number"),
 		dateCreated: integer("date_created"),
 	},
-	(table) => [index("songs_original_uuid_ifx").on(table.originalUuid)],
+	(table) => [index("songs_original_uuid_idx").on(table.originalUuid)],
 );
 
 export const songGenres = sqliteTable(
@@ -107,6 +108,7 @@ export const songGenres = sqliteTable(
 		primaryKey({
 			columns: [table.name, table.songId],
 		}),
+		index("song_genres_song_id_idx").on(table.songId),
 	],
 );
 
