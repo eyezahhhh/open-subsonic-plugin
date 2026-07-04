@@ -20,6 +20,8 @@ export class PlaylistsWebModule extends WebModule {
 			return [];
 		}
 
+		const start = Date.now();
+
 		const allSongs: (Schema.Song | null)[] = Array(tracks.length).fill(null);
 		const indexes = new Map<string, number>();
 
@@ -68,6 +70,9 @@ export class PlaylistsWebModule extends WebModule {
 				);
 			}
 		}
+
+		const duration = Date.now() - start;
+		console.log(`Tracklist conversion took ${duration}ms`);
 
 		return allSongs.filter((song) => !!song);
 	}
