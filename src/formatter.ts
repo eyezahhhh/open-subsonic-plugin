@@ -1,6 +1,12 @@
 import { SavedPlaylist } from "@sdk";
 import * as schema from "./db/schema.js";
-import { AlbumID3WithSongs, Artist, Child, Playlist } from "./types.js";
+import {
+	AlbumID3WithSongs,
+	Artist,
+	ArtistID3,
+	Child,
+	Playlist,
+} from "./types.js";
 import { createAttributeRecord, getAttributeValue } from "./util.js";
 
 export function formatArtist(artist: schema.Artist): Artist {
@@ -39,14 +45,21 @@ export function blankArtist(uuid: string): Artist {
 export function formatAlbum(album: schema.Album): AlbumID3WithSongs {
 	let artistName = "";
 	let artistId = "";
-
-	if (album.albumArtists?.length) {
+	let artists: ArtistID3[] | undefined;
+	if (album.albumArtists) {
 		const sorted = [...album.albumArtists].sort(
 			(a, b) => a.ordinal! - b.ordinal!,
 		);
-		const primaryArtist = sorted[0]!;
-		artistName = primaryArtist.artist?.name ?? "Unknown Artist";
-		artistId = primaryArtist.artistId!;
+
+		if (sorted.length) {
+			const primaryArtist = sorted[0]!;
+			artistName = primaryArtist.artist?.name ?? "Unknown Artist";
+			artistId = primaryArtist.artistId!;
+
+			artists = sorted.map((link) =>
+				link.artist ? formatArtist(link.artist) : blankArtist(link.artistId!),
+			);
+		}
 	}
 
 	const response: AlbumID3WithSongs = {
@@ -59,9 +72,7 @@ export function formatAlbum(album: schema.Album): AlbumID3WithSongs {
 		duration: Math.round(album.duration ?? 0),
 		artist: artistName,
 		artistId,
-		artists: album.albumArtists?.map((link) =>
-			link.artist ? formatArtist(link.artist) : blankArtist(link.artistId!),
-		),
+		artists,
 		genres: album.albumGenres?.map((genre) => ({
 			name: genre.name!,
 		})),
@@ -95,13 +106,21 @@ export function formatSong(song: Omit<schema.Song, "syncId">): Child {
 	let artistName = "";
 	let artistId = "";
 
-	if (song.songArtists?.length) {
+	let artists: ArtistID3[] | undefined;
+	if (song.songArtists) {
 		const sorted = [...song.songArtists].sort(
 			(a, b) => a.ordinal! - b.ordinal!,
 		);
-		const primaryArtist = sorted[0]!;
-		artistName = primaryArtist.artist?.name ?? "Unknown Artist";
-		artistId = primaryArtist.artistId!;
+
+		if (sorted.length) {
+			const primaryArtist = sorted[0]!;
+			artistName = primaryArtist.artist?.name ?? "Unknown Artist";
+			artistId = primaryArtist.artistId!;
+
+			artists = sorted.map((link) =>
+				link.artist ? formatArtist(link.artist) : blankArtist(link.artistId!),
+			);
+		}
 	}
 
 	const response: Child = {
@@ -110,9 +129,7 @@ export function formatSong(song: Omit<schema.Song, "syncId">): Child {
 		isDir: false,
 		artist: artistName,
 		artistId,
-		artists: song.songArtists?.map((link) =>
-			link.artist ? formatArtist(link.artist) : blankArtist(link.artistId!),
-		),
+		artists,
 		displayArtist: getArtistString(song.songArtists ?? []),
 		coverArt: song.coverArt ?? "",
 		duration: Math.round(song.duration ?? 0),
@@ -139,11 +156,15 @@ export function formatSong(song: Omit<schema.Song, "syncId">): Child {
 export function getArtistString(
 	artists: Omit<schema.SongArtist | schema.AlbumArtist, "syncId">[],
 ) {
-	const fullArtists = artists.map(({ artist, joinPhrase }) => ({
+	const fullArtists = artists.map(({ artist, joinPhrase, ordinal }) => ({
 		...artist,
 		joinPhrase,
+		ordinal,
 	}));
+
 	if (fullArtists.length) {
+		fullArtists.sort((a, b) => (a.ordinal ?? 0) - (b.ordinal ?? 0));
+
 		let artistString = "";
 		for (const [i, artist] of fullArtists.entries()) {
 			if (artist.name) {
