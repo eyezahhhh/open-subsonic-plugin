@@ -169,10 +169,12 @@ export function getArtistString(
 		for (const [i, artist] of fullArtists.entries()) {
 			if (artist.name) {
 				artistString += artist.name;
-				if (artist.joinPhrase) {
-					artistString += artist.joinPhrase;
-				} else if (i < fullArtists.length - 1) {
-					artistString += ", ";
+				if (i < fullArtists.length - 1) {
+					if (artist.joinPhrase) {
+						artistString += artist.joinPhrase;
+					} else {
+						artistString += ", ";
+					}
 				}
 			}
 		}
