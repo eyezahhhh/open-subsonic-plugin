@@ -49,7 +49,7 @@ export class DatabaseManager {
 			}
 		};
 
-		await this.dataClient.forEachArtist(async (artistUuid) => {
+		await this.dataClient.forEachArtistId(async (artistUuid) => {
 			try {
 				if (onlyNew) {
 					const exists = await this.db.query.artists.findFirst({
@@ -163,7 +163,7 @@ export class DatabaseManager {
 			}
 		};
 
-		await this.dataClient.forEachAlbum(async (albumUuid) => {
+		await this.dataClient.forEachAlbumId(async (albumUuid) => {
 			try {
 				if (onlyNew) {
 					const exists = await this.db.query.albums.findFirst({
@@ -330,7 +330,7 @@ export class DatabaseManager {
 			};
 
 			let completed = 0;
-			await this.dataClient.forEachTrack(
+			await this.dataClient.forEachTrackId(
 				pluginId,
 				libraryId,
 				async (trackId, trackUuid) => {
