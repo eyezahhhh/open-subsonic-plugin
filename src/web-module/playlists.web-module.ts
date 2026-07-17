@@ -177,12 +177,16 @@ export class PlaylistsWebModule extends WebModule {
 
 			const name = param("name");
 			if (name) {
-				await this.playlistClient.updatePlaylistAttributes(playlist.uuid, [
-					{
-						key: "title",
-						value: name,
-					},
-				]);
+				await this.playlistClient.updatePlaylistAttributes(
+					playlist.uuid,
+					null,
+					[
+						{
+							key: "title",
+							value: name,
+						},
+					],
+				);
 			}
 		});
 
@@ -211,7 +215,10 @@ export class PlaylistsWebModule extends WebModule {
 				playlistId = playlist.uuid;
 			} else {
 				playlistId = await this.playlistClient.createUserPlaylist(userId, {
-					attributes,
+					attributes: {
+						sourceId: null,
+						attributes,
+					},
 				});
 			}
 
