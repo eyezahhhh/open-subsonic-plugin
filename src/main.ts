@@ -70,13 +70,20 @@ export default class Plugin implements PipeBomb.Plugin {
 				const startServer = () => {
 					const port = configManager.getPort();
 					const currentPort = webServer.getPort();
+					const prefix = configManager.getPrefix();
+					const currentPrefix = webServer.getPrefix();
 
-					if (currentPort && currentPort == port) {
+					if (
+						currentPort &&
+						currentPort == port &&
+						currentPrefix &&
+						currentPrefix == prefix
+					) {
 						return;
 					}
 
 					if (port) {
-						webServer.listen(port);
+						webServer.listen(port, prefix);
 					} else {
 						webServer.close();
 					}

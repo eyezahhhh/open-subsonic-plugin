@@ -19,6 +19,7 @@ import { SubsonicUserConfigManager } from "./subsonic.user-config-manager.js";
 export class WebServer {
 	private server: Server | null = null;
 	private port: number | null = null;
+	private prefix: string | null = null;
 	private readonly moduleManager: WebModuleManager;
 
 	constructor(
@@ -64,14 +65,15 @@ export class WebServer {
 		});
 	}
 
-	async listen(port: number) {
+	async listen(port: number, prefix: string) {
 		await this.close();
 
 		this.port = port;
+		this.prefix = prefix;
 
 		const app = express();
 
-		app.get("/", (_req, res) => {
+		app.get(prefix, (_req, res) => {
 			res.send("Pipe Bomb OpenSubsonic server");
 		});
 
@@ -79,7 +81,7 @@ export class WebServer {
 		this.logger.debug(`Exposing ${assetsDir}`);
 		// app.use("/assets", express.static(assetsDir));
 
-		this.moduleManager.bind(app);
+		this.moduleManager.bind(app, prefix);
 
 		app.use((req, res) => {
 			this.logger.debug("Unhandled request:", req.url);
@@ -98,5 +100,9 @@ export class WebServer {
 
 	getPort() {
 		return this.port;
+	}
+
+	getPrefix() {
+		return this.prefix;
 	}
 }

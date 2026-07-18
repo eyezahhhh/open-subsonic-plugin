@@ -5,6 +5,7 @@ export class SubsonicConfigManager implements ConfigManager {
 
 	private port: number | null = null;
 	private name: string | null = null;
+	private prefix: string | null = null;
 
 	private readonly updateListeners = new Set<() => void>();
 
@@ -37,6 +38,10 @@ export class SubsonicConfigManager implements ConfigManager {
 		return this.name;
 	}
 
+	getPrefix() {
+		return `/${this.prefix ?? ""}`;
+	}
+
 	async getConfigOptions(): Promise<ConfigNode> {
 		return {
 			type: "section",
@@ -58,6 +63,13 @@ export class SubsonicConfigManager implements ConfigManager {
 						},
 						{
 							type: "text",
+							id: "prefix",
+							name: "OpenSubsonic server URL prefix",
+							value: this.getPrefix(),
+							placeholder: "/subsonic",
+						},
+						{
+							type: "text",
 							id: "name",
 							name: "OpenSubsonic server name",
 							value: this.name ?? "",
@@ -65,48 +77,6 @@ export class SubsonicConfigManager implements ConfigManager {
 						},
 					],
 				},
-				// {
-				// 	type: "section",
-				// 	children: [
-				// 		{
-				// 			type: "heading",
-				// 			content: "Logins",
-				// 			size: "md",
-				// 		},
-				// 		...Object.values(this.logins).map(
-				// 			({ username, password }) =>
-				// 				({
-				// 					type: "heading",
-				// 					content: `[${username}]: "${password}"`,
-				// 					size: "sm",
-				// 				}) as HeadingConfigNode,
-				// 		),
-				// 	],
-				// },
-				// {
-				// 	type: "section",
-				// 	children: [
-				// 		{
-				// 			type: "heading",
-				// 			content: "New Login",
-				// 			size: "md",
-				// 		},
-				// 		{
-				// 			type: "text",
-				// 			id: "username",
-				// 			name: "Username",
-				// 			placeholder: "eyezah",
-				// 			value: "",
-				// 		},
-				// 		{
-				// 			type: "text",
-				// 			id: "password",
-				// 			name: "OpenSubsonic Password",
-				// 			placeholder: "12345678",
-				// 			value: "",
-				// 		},
-				// 	],
-				// },
 			],
 		};
 	}
@@ -126,6 +96,21 @@ export class SubsonicConfigManager implements ConfigManager {
 			}
 		}
 
+		let prefix: string = values.prefix;
+		if (typeof prefix == "string") {
+			prefix = prefix.trim();
+			if (prefix.startsWith("/")) {
+				prefix = prefix.substring(1);
+			}
+			if (prefix) {
+				await this.api.setValue("prefix", "string", prefix);
+				this.prefix = prefix;
+			} else {
+				await this.api.delete("prefix");
+				this.prefix = null;
+			}
+		}
+
 		const name = values.name;
 		if (typeof name == "string") {
 			if (name.trim()) {
@@ -136,46 +121,6 @@ export class SubsonicConfigManager implements ConfigManager {
 				this.name = null;
 			}
 		}
-
-		// let { username, password } = values;
-		// if (
-		// 	username &&
-		// 	password &&
-		// 	typeof username == "string" &&
-		// 	typeof password == "string" &&
-		// 	username.trim()
-		// ) {
-		// 	const uuid = await this.authClient.getUuid(username.trim());
-		// 	if (uuid) {
-		// 		username = username.trim();
-		// 		password = password.trim();
-		// 		const newLogins = Object.values(this.logins).filter(
-		// 			(entry) => entry.username != username,
-		// 		);
-
-		// 		if (password) {
-		// 			newLogins.push({
-		// 				uuid,
-		// 				username,
-		// 				password,
-		// 			});
-		// 		}
-
-		// 		const newLoginStrings = newLogins.map(
-		// 			({ uuid, username, password }) =>
-		// 				`${uuid}:${username}:${Buffer.from(password, "utf-8").toString("hex")}`,
-		// 		);
-
-		// 		await this.api.setValue("login", "string", newLoginStrings);
-		// 		if (password.trim()) {
-		// 			this.logins[username] = { uuid, username, password };
-		// 		} else {
-		// 			delete this.logins[username];
-		// 		}
-
-		// 		console.log(newLoginStrings);
-		// 	}
-		// }
 
 		this.emit();
 		return this.getConfigOptions();

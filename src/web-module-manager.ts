@@ -27,13 +27,16 @@ export class WebModuleManager {
 		}
 	}
 
-	public bind(app: Express) {
+	public bind(app: Express, prefix: string) {
 		const createEndpoint: CreateEndpointFunction = (
 			page,
 			callback,
 			options = {},
 		) => {
 			page = `/rest/${page}`;
+			if (prefix.length > 1) {
+				page = prefix + page;
+			}
 
 			const endpoints = [page];
 			if (!options.noViewSuffix) {
