@@ -1,7 +1,6 @@
 import { DataClient, Logger, PlaylistClient } from "@sdk";
 import express from "express";
 import { Server } from "http";
-import { SubsonicConfigManager } from "./subsonic.config-manager.js";
 import path from "path";
 import { SessionManager } from "./session-manager.js";
 import { WebModuleManager } from "./web-module-manager.js";
@@ -85,8 +84,7 @@ export class WebServer {
 
 		app.use((req, res) => {
 			this.logger.debug("Unhandled request:", req.url);
-			// console.log(req.path);
-			res.status(500).send();
+			res.status(404).send("Endpoint not found");
 		});
 
 		this.server = app.listen(port, (error) => {
