@@ -1,4 +1,5 @@
 import { ConfigManager, ConfigManagerApiContext, ConfigNode } from "@sdk";
+import { isValidUrl } from "./util.js";
 
 export class SubsonicConfigManager implements ConfigManager {
 	private api!: ConfigManagerApiContext;
@@ -6,6 +7,7 @@ export class SubsonicConfigManager implements ConfigManager {
 	private port: number | null = null;
 	private name: string | null = null;
 	private prefix: string | null = null;
+	private publicUrl: string | null = null;
 
 	private readonly updateListeners = new Set<() => void>();
 
@@ -42,6 +44,10 @@ export class SubsonicConfigManager implements ConfigManager {
 		return `/${this.prefix ?? ""}`;
 	}
 
+	getPublicUrl() {
+		return this.publicUrl;
+	}
+
 	async getConfigOptions(): Promise<ConfigNode> {
 		return {
 			type: "section",
@@ -67,6 +73,13 @@ export class SubsonicConfigManager implements ConfigManager {
 							name: "OpenSubsonic server URL prefix",
 							value: this.getPrefix(),
 							placeholder: "/subsonic",
+						},
+						{
+							type: "text",
+							id: "public_url",
+							name: "OpenSubsonic server public URL",
+							value: this.publicUrl ?? "",
+							placeholder: "https://subsonic.pipebomb.net",
 						},
 						{
 							type: "text",
@@ -119,6 +132,20 @@ export class SubsonicConfigManager implements ConfigManager {
 			} else {
 				await this.api.delete("name");
 				this.name = null;
+			}
+		}
+
+		let publicUrl: string = values.public_url;
+		if (typeof publicUrl == "string") {
+			publicUrl = publicUrl.trim();
+			if (publicUrl) {
+				if (isValidUrl(publicUrl)) {
+					await this.api.setValue("public_url", "string", publicUrl.trim());
+					this.publicUrl = publicUrl;
+				}
+			} else {
+				await this.api.delete("public_url");
+				this.publicUrl = null;
 			}
 		}
 

@@ -30,7 +30,10 @@ export default class Plugin implements PipeBomb.Plugin {
 
 		const configManager = new SubsonicConfigManager();
 		this.api.registerConfigManager(configManager);
-		const userConfigManager = new SubsonicUserConfigManager(authClient);
+		const userConfigManager = new SubsonicUserConfigManager(
+			authClient,
+			configManager,
+		);
 		this.api.registerUserConfigManager("auth", userConfigManager);
 
 		const playlistClient = this.api.getPlaylistClient();

@@ -4,6 +4,7 @@ import {
 	UserConfigManager,
 	UserConfigManagerApiContext,
 } from "@sdk";
+import { SubsonicConfigManager } from "./subsonic.config-manager.js";
 
 export interface UserInfo {
 	uuid: string;
@@ -15,7 +16,10 @@ export class SubsonicUserConfigManager implements UserConfigManager {
 	private api!: UserConfigManagerApiContext;
 	private logins: Record<string, UserInfo> = {};
 
-	constructor(private readonly authClient: AuthClient) {}
+	constructor(
+		private readonly authClient: AuthClient,
+		private readonly config: SubsonicConfigManager,
+	) {}
 
 	async enable(userConfigManagerApiContext: UserConfigManagerApiContext) {
 		this.api = userConfigManagerApiContext;
@@ -56,17 +60,27 @@ export class SubsonicUserConfigManager implements UserConfigManager {
 		}
 		const userInfo = this.getUserInfo(username);
 
+		const children: ConfigNode[] = [
+			{
+				type: "text",
+				value: userInfo?.password ?? "",
+				id: "password",
+				placeholder: "super secret password",
+				name: "Subsonic password",
+			},
+		];
+
+		const publicUrl = this.config.getPublicUrl();
+		if (publicUrl) {
+			children.unshift({
+				type: "paragraph",
+				content: `Connect to Pipe Bomb using your favourite OpenSubsonic client. Server URL: "${publicUrl}"`,
+			});
+		}
+
 		return {
 			type: "section",
-			children: [
-				{
-					type: "text",
-					value: userInfo?.password ?? "",
-					id: "password",
-					placeholder: "super secret password",
-					name: "Subsonic password",
-				},
-			],
+			children,
 		};
 	}
 
