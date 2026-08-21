@@ -214,7 +214,8 @@ export class PlaylistsWebModule extends WebModule {
 				}
 				playlistId = playlist.uuid;
 			} else {
-				playlistId = await this.playlistClient.createUserPlaylist(userId, {
+				playlistId = await this.playlistClient.createPlaylist({
+					ownerUuid: userId,
 					attributes: {
 						sourceId: null,
 						attributes,
