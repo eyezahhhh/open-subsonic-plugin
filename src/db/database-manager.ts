@@ -49,6 +49,31 @@ export class DatabaseManager {
 			}
 		};
 
+		let artistIdBuffer: string[] = [];
+		const flushArtistBuffer = async () => {
+			if (!artistIdBuffer.length) {
+				return;
+			}
+			const uuids = artistIdBuffer;
+			artistIdBuffer = [];
+			try {
+				const artists = await this.dataClient.getArtists(uuids, {
+					relations: {
+						albums: true,
+						attributes: true,
+						identities: true,
+					},
+				});
+				for (const artist of artists) {
+					artistChunk.push({ ...Formatter.toArtist(artist), syncId });
+				}
+				await insertArtists();
+			} catch (e) {
+				this.logger.error(`Failed to sync a batch of Artists:`, e);
+			}
+			await new Promise<void>((resolve) => setImmediate(resolve));
+		};
+
 		await this.dataClient.forEachArtistId(async (artistUuid) => {
 			try {
 				if (onlyNew) {
@@ -63,26 +88,12 @@ export class DatabaseManager {
 					}
 				}
 
-				const artist = await this.dataClient.getArtist(artistUuid, {
-					relations: {
-						albums: true,
-						attributes: true,
-						identities: true,
-					},
-				});
-
-				if (artist) {
-					const entity: Schema.Artist = {
-						...Formatter.toArtist(artist),
-						syncId,
-					};
-					artistChunk.push(entity);
-					if (artistChunk.length >= 100) {
-						await insertArtists();
-					}
+				artistIdBuffer.push(artistUuid);
+				if (artistIdBuffer.length >= 100) {
+					await flushArtistBuffer();
 				}
 			} catch (e) {
-				this.logger.error(`Failed to sync Artist "${artistUuid}":`, e);
+				this.logger.error(`Failed to queue Artist "${artistUuid}":`, e);
 			} finally {
 				this.logger.debug(
 					`Syncing Artists (${++completedArtists}/${totalArtists})`,
@@ -90,6 +101,7 @@ export class DatabaseManager {
 				onProgress(completedArtists / totalArtists / STEPS);
 			}
 		});
+		await flushArtistBuffer();
 		await insertArtists();
 
 		const totalAlbums = await this.dataClient.getAlbumCount();
@@ -163,21 +175,15 @@ export class DatabaseManager {
 			}
 		};
 
-		await this.dataClient.forEachAlbumId(async (albumUuid) => {
+		let albumIdBuffer: string[] = [];
+		const flushAlbumBuffer = async () => {
+			if (!albumIdBuffer.length) {
+				return;
+			}
+			const uuids = albumIdBuffer;
+			albumIdBuffer = [];
 			try {
-				if (onlyNew) {
-					const exists = await this.db.query.albums.findFirst({
-						where: eq(Schema.albums.id, albumUuid),
-						columns: {
-							id: true,
-						},
-					});
-					if (exists) {
-						return;
-					}
-				}
-
-				const album = await this.dataClient.getAlbum(albumUuid, {
+				const albums = await this.dataClient.getAlbums(uuids, {
 					relations: {
 						artists: {
 							attributes: true,
@@ -190,9 +196,8 @@ export class DatabaseManager {
 					},
 				});
 
-				if (album) {
-					const entity: Schema.Album = { ...Formatter.toAlbum(album), syncId };
-					albumChunk.push(entity);
+				for (const album of albums) {
+					albumChunk.push({ ...Formatter.toAlbum(album), syncId });
 
 					if (album.artists?.length) {
 						const entities: Schema.AlbumArtist[] = album.artists.map(
@@ -227,18 +232,35 @@ export class DatabaseManager {
 							syncId,
 						});
 					}
+				}
 
-					if (
-						albumChunk.length >= 100 ||
-						albumArtistChunk.length >= 100 ||
-						albumGenreChunk.length >= 100 ||
-						genreChunk.length >= 100
-					) {
-						await insertAlbums();
+				await insertAlbums();
+			} catch (e) {
+				this.logger.error(`Failed to sync a batch of Albums:`, e);
+			}
+			await new Promise<void>((resolve) => setImmediate(resolve));
+		};
+
+		await this.dataClient.forEachAlbumId(async (albumUuid) => {
+			try {
+				if (onlyNew) {
+					const exists = await this.db.query.albums.findFirst({
+						where: eq(Schema.albums.id, albumUuid),
+						columns: {
+							id: true,
+						},
+					});
+					if (exists) {
+						return;
 					}
 				}
+
+				albumIdBuffer.push(albumUuid);
+				if (albumIdBuffer.length >= 100) {
+					await flushAlbumBuffer();
+				}
 			} catch (e) {
-				this.logger.error(`Failed to sync Album "${albumUuid}":`, e);
+				this.logger.error(`Failed to queue Album "${albumUuid}":`, e);
 			} finally {
 				this.logger.debug(
 					`Syncing Albums (${++completedAlbums}/${totalAlbums})`,
@@ -246,6 +268,7 @@ export class DatabaseManager {
 				onProgress(completedAlbums / totalAlbums / STEPS + 1 / STEPS);
 			}
 		});
+		await flushAlbumBuffer();
 		await insertAlbums();
 
 		const handlerIds = this.dataClient.getLibraryHandlerIds();
@@ -329,6 +352,85 @@ export class DatabaseManager {
 				}
 			};
 
+			let trackIdBuffer: string[] = [];
+			const flushTrackBuffer = async () => {
+				if (!trackIdBuffer.length) {
+					return;
+				}
+				const trackIds = trackIdBuffer;
+				trackIdBuffer = [];
+				try {
+					const tracks = await this.dataClient.getTracks(
+						trackIds.map((trackId) => ({ pluginId, libraryId, trackId })),
+						{
+							relations: {
+								attributes: true,
+								identities: true,
+								artists: {
+									attributes: true,
+								},
+								albums: {
+									attributes: true,
+								},
+							},
+						},
+					);
+
+					for (const track of tracks) {
+						const songs: Schema.Song[] = Formatter.toSong(track).map(
+							(song) => ({ ...song, syncId }),
+						);
+						songChunk.push(...songs);
+
+						if (track.artists?.length) {
+							for (const song of songs) {
+								const links: Schema.SongArtist[] = track.artists.map(
+									(link) => ({
+										songId: song.id,
+										artistId: link.artistUuid,
+										ordinal: link.ordinal,
+										joinPhrase: link.joinPhrase,
+										syncId,
+									}),
+								);
+								songArtistChunk.push(...links);
+							}
+						}
+
+						const genres = new Set<string>();
+						for (const attribute of track.attributes ?? []) {
+							if (attribute.key == "genre" && attribute.type == "string") {
+								for (const value of attribute.values) {
+									genres.add(value);
+								}
+							}
+						}
+
+						for (const genre of genres) {
+							if (!completedGenres.has(genre)) {
+								completedGenres.add(genre);
+								genreChunk.push({ name: genre, syncId });
+							}
+							for (const song of songs) {
+								songGenreChunk.push({
+									songId: song.id,
+									name: genre,
+									syncId,
+								});
+							}
+						}
+					}
+
+					await insertTracks();
+				} catch (e) {
+					this.logger.error(
+						`Failed to sync a batch of Tracks in Library "${libraryId}" from Plugin "${pluginId}":`,
+						e,
+					);
+				}
+				await new Promise<void>((resolve) => setImmediate(resolve));
+			};
+
 			let completed = 0;
 			await this.dataClient.forEachTrackId(
 				pluginId,
@@ -347,80 +449,13 @@ export class DatabaseManager {
 							}
 						}
 
-						const track = await this.dataClient.getTrack(
-							pluginId,
-							libraryId,
-							trackId,
-							{
-								relations: {
-									attributes: true,
-									identities: true,
-									artists: {
-										attributes: true,
-									},
-									albums: {
-										attributes: true,
-									},
-								},
-							},
-						);
-
-						if (track) {
-							const songs: Schema.Song[] = Formatter.toSong(track).map(
-								(song) => ({ ...song, syncId }),
-							);
-							songChunk.push(...songs);
-
-							if (track.artists?.length) {
-								for (const song of songs) {
-									const links: Schema.SongArtist[] = track.artists.map(
-										(link) => ({
-											songId: song.id,
-											artistId: link.artistUuid,
-											ordinal: link.ordinal,
-											joinPhrase: link.joinPhrase,
-											syncId,
-										}),
-									);
-									songArtistChunk.push(...links);
-								}
-							}
-
-							const genres = new Set<string>();
-							for (const attribute of track.attributes ?? []) {
-								if (attribute.key == "genre" && attribute.type == "string") {
-									for (const value of attribute.values) {
-										genres.add(value);
-									}
-								}
-							}
-
-							for (const genre of genres) {
-								if (!completedGenres.has(genre)) {
-									completedGenres.add(genre);
-									genreChunk.push({ name: genre, syncId });
-								}
-								for (const song of songs) {
-									songGenreChunk.push({
-										songId: song.id,
-										name: genre,
-										syncId,
-									});
-								}
-							}
-
-							if (
-								songChunk.length >= 100 ||
-								songArtistChunk.length >= 100 ||
-								songGenreChunk.length >= 100 ||
-								genreChunk.length >= 100
-							) {
-								await insertTracks();
-							}
+						trackIdBuffer.push(trackId);
+						if (trackIdBuffer.length >= 100) {
+							await flushTrackBuffer();
 						}
 					} catch (e) {
 						this.logger.error(
-							`Failed to sync Track "${trackId}" in Library "${libraryId}" from Plugin "${pluginId}":`,
+							`Failed to queue Track "${trackId}" in Library "${libraryId}" from Plugin "${pluginId}":`,
 							e,
 						);
 					} finally {
@@ -431,6 +466,7 @@ export class DatabaseManager {
 					}
 				},
 			);
+			await flushTrackBuffer();
 			await insertTracks();
 		}
 
