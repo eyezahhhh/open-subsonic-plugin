@@ -1,4 +1,4 @@
-import { DataClient, Logger, SavedAttribute } from "@sdk";
+import { DataClient, Logger } from "@sdk";
 import { DBClient } from "./client.js";
 import { randomUUID } from "crypto";
 import Formatter from "./db-formatter.js";
@@ -6,8 +6,6 @@ import * as Schema from "./schema.js";
 import { eq, ne, sql } from "drizzle-orm";
 
 export class DatabaseManager {
-	private syncId = randomUUID();
-
 	constructor(
 		private readonly db: DBClient,
 		private readonly dataClient: DataClient,
@@ -20,9 +18,10 @@ export class DatabaseManager {
 
 	async sync(onlyNew: boolean, onProgress: (fraction: number) => void) {
 		const STEPS = 3;
+		const yieldToEventLoop = () =>
+			new Promise<void>((resolve) => setImmediate(resolve));
 
 		const syncId = randomUUID();
-		this.syncId = syncId;
 
 		const completedGenres = new Set<string>();
 		let genreChunk: Schema.Genre[] = [];
@@ -46,32 +45,8 @@ export class DatabaseManager {
 						},
 					});
 				artistChunk = [];
+				await yieldToEventLoop();
 			}
-		};
-
-		let artistIdBuffer: string[] = [];
-		const flushArtistBuffer = async () => {
-			if (!artistIdBuffer.length) {
-				return;
-			}
-			const uuids = artistIdBuffer;
-			artistIdBuffer = [];
-			try {
-				const artists = await this.dataClient.getArtists(uuids, {
-					relations: {
-						albums: true,
-						attributes: true,
-						identities: true,
-					},
-				});
-				for (const artist of artists) {
-					artistChunk.push({ ...Formatter.toArtist(artist), syncId });
-				}
-				await insertArtists();
-			} catch (e) {
-				this.logger.error(`Failed to sync a batch of Artists:`, e);
-			}
-			await new Promise<void>((resolve) => setImmediate(resolve));
 		};
 
 		await this.dataClient.forEachArtistId(async (artistUuid) => {
@@ -88,12 +63,21 @@ export class DatabaseManager {
 					}
 				}
 
-				artistIdBuffer.push(artistUuid);
-				if (artistIdBuffer.length >= 100) {
-					await flushArtistBuffer();
+				const artist = await this.dataClient.getArtist(artistUuid, {
+					relations: {
+						albums: true,
+						attributes: true,
+						identities: true,
+					},
+				});
+				if (artist) {
+					artistChunk.push({ ...Formatter.toArtist(artist), syncId });
+				}
+				if (artistChunk.length >= 10) {
+					await insertArtists();
 				}
 			} catch (e) {
-				this.logger.error(`Failed to queue Artist "${artistUuid}":`, e);
+				this.logger.error(`Failed to sync Artist "${artistUuid}":`, e);
 			} finally {
 				this.logger.debug(
 					`Syncing Artists (${++completedArtists}/${totalArtists})`,
@@ -101,7 +85,6 @@ export class DatabaseManager {
 				onProgress(completedArtists / totalArtists / STEPS);
 			}
 		});
-		await flushArtistBuffer();
 		await insertArtists();
 
 		const totalAlbums = await this.dataClient.getAlbumCount();
@@ -110,6 +93,7 @@ export class DatabaseManager {
 		let albumArtistChunk: Schema.AlbumArtist[] = [];
 		let albumGenreChunk: Schema.AlbumGenre[] = [];
 		const insertAlbums = async () => {
+			let didInsert = false;
 			if (albumChunk.length) {
 				await this.db
 					.insert(Schema.albums)
@@ -129,6 +113,7 @@ export class DatabaseManager {
 						},
 					});
 				albumChunk = [];
+				didInsert = true;
 			}
 			if (albumArtistChunk.length) {
 				await this.db
@@ -145,6 +130,7 @@ export class DatabaseManager {
 						},
 					});
 				albumArtistChunk = [];
+				didInsert = true;
 			}
 			if (genreChunk.length) {
 				await this.db
@@ -158,6 +144,7 @@ export class DatabaseManager {
 						},
 					});
 				genreChunk = [];
+				didInsert = true;
 			}
 			if (albumGenreChunk.length) {
 				await this.db
@@ -172,18 +159,28 @@ export class DatabaseManager {
 						},
 					});
 				albumGenreChunk = [];
+				didInsert = true;
+			}
+			if (didInsert) {
+				await yieldToEventLoop();
 			}
 		};
 
-		let albumIdBuffer: string[] = [];
-		const flushAlbumBuffer = async () => {
-			if (!albumIdBuffer.length) {
-				return;
-			}
-			const uuids = albumIdBuffer;
-			albumIdBuffer = [];
+		await this.dataClient.forEachAlbumId(async (albumUuid) => {
 			try {
-				const albums = await this.dataClient.getAlbums(uuids, {
+				if (onlyNew) {
+					const exists = await this.db.query.albums.findFirst({
+						where: eq(Schema.albums.id, albumUuid),
+						columns: {
+							id: true,
+						},
+					});
+					if (exists) {
+						return;
+					}
+				}
+
+				const album = await this.dataClient.getAlbum(albumUuid, {
 					relations: {
 						artists: {
 							attributes: true,
@@ -195,8 +192,7 @@ export class DatabaseManager {
 						},
 					},
 				});
-
-				for (const album of albums) {
+				if (album) {
 					albumChunk.push({ ...Formatter.toAlbum(album), syncId });
 
 					if (album.artists?.length) {
@@ -233,34 +229,11 @@ export class DatabaseManager {
 						});
 					}
 				}
-
-				await insertAlbums();
-			} catch (e) {
-				this.logger.error(`Failed to sync a batch of Albums:`, e);
-			}
-			await new Promise<void>((resolve) => setImmediate(resolve));
-		};
-
-		await this.dataClient.forEachAlbumId(async (albumUuid) => {
-			try {
-				if (onlyNew) {
-					const exists = await this.db.query.albums.findFirst({
-						where: eq(Schema.albums.id, albumUuid),
-						columns: {
-							id: true,
-						},
-					});
-					if (exists) {
-						return;
-					}
-				}
-
-				albumIdBuffer.push(albumUuid);
-				if (albumIdBuffer.length >= 100) {
-					await flushAlbumBuffer();
+				if (albumChunk.length >= 10) {
+					await insertAlbums();
 				}
 			} catch (e) {
-				this.logger.error(`Failed to queue Album "${albumUuid}":`, e);
+				this.logger.error(`Failed to sync Album "${albumUuid}":`, e);
 			} finally {
 				this.logger.debug(
 					`Syncing Albums (${++completedAlbums}/${totalAlbums})`,
@@ -268,7 +241,6 @@ export class DatabaseManager {
 				onProgress(completedAlbums / totalAlbums / STEPS + 1 / STEPS);
 			}
 		});
-		await flushAlbumBuffer();
 		await insertAlbums();
 
 		const handlerIds = this.dataClient.getLibraryHandlerIds();
@@ -285,6 +257,7 @@ export class DatabaseManager {
 			let songArtistChunk: Schema.SongArtist[] = [];
 			let songGenreChunk: Schema.SongGenre[] = [];
 			const insertTracks = async () => {
+				let didInsert = false;
 				if (songChunk.length) {
 					await this.db
 						.insert(Schema.songs)
@@ -308,6 +281,7 @@ export class DatabaseManager {
 							},
 						});
 					songChunk = [];
+					didInsert = true;
 				}
 				if (songArtistChunk.length) {
 					await this.db
@@ -322,6 +296,7 @@ export class DatabaseManager {
 							},
 						});
 					songArtistChunk = [];
+					didInsert = true;
 				}
 				if (genreChunk.length) {
 					await this.db
@@ -335,6 +310,7 @@ export class DatabaseManager {
 							},
 						});
 					genreChunk = [];
+					didInsert = true;
 				}
 				if (songGenreChunk.length) {
 					await this.db
@@ -349,86 +325,11 @@ export class DatabaseManager {
 							},
 						});
 					songGenreChunk = [];
+					didInsert = true;
 				}
-			};
-
-			let trackIdBuffer: string[] = [];
-			const flushTrackBuffer = async () => {
-				if (!trackIdBuffer.length) {
-					return;
+				if (didInsert) {
+					await yieldToEventLoop();
 				}
-				const trackIds = trackIdBuffer;
-				trackIdBuffer = [];
-				try {
-					const tracks = await this.dataClient.getTracks(
-						trackIds.map((trackId) => ({ pluginId, libraryId, trackId })),
-						{
-							relations: {
-								attributes: true,
-								identities: true,
-								artists: {
-									attributes: true,
-								},
-								albums: {
-									attributes: true,
-								},
-							},
-						},
-					);
-
-					for (const track of tracks) {
-						const songs: Schema.Song[] = Formatter.toSong(track).map(
-							(song) => ({ ...song, syncId }),
-						);
-						songChunk.push(...songs);
-
-						if (track.artists?.length) {
-							for (const song of songs) {
-								const links: Schema.SongArtist[] = track.artists.map(
-									(link) => ({
-										songId: song.id,
-										artistId: link.artistUuid,
-										ordinal: link.ordinal,
-										joinPhrase: link.joinPhrase,
-										syncId,
-									}),
-								);
-								songArtistChunk.push(...links);
-							}
-						}
-
-						const genres = new Set<string>();
-						for (const attribute of track.attributes ?? []) {
-							if (attribute.key == "genre" && attribute.type == "string") {
-								for (const value of attribute.values) {
-									genres.add(value);
-								}
-							}
-						}
-
-						for (const genre of genres) {
-							if (!completedGenres.has(genre)) {
-								completedGenres.add(genre);
-								genreChunk.push({ name: genre, syncId });
-							}
-							for (const song of songs) {
-								songGenreChunk.push({
-									songId: song.id,
-									name: genre,
-									syncId,
-								});
-							}
-						}
-					}
-
-					await insertTracks();
-				} catch (e) {
-					this.logger.error(
-						`Failed to sync a batch of Tracks in Library "${libraryId}" from Plugin "${pluginId}":`,
-						e,
-					);
-				}
-				await new Promise<void>((resolve) => setImmediate(resolve));
 			};
 
 			let completed = 0;
@@ -449,13 +350,73 @@ export class DatabaseManager {
 							}
 						}
 
-						trackIdBuffer.push(trackId);
-						if (trackIdBuffer.length >= 100) {
-							await flushTrackBuffer();
+						const track = await this.dataClient.getTrack(
+							pluginId,
+							libraryId,
+							trackId,
+							{
+								relations: {
+									attributes: true,
+									identities: true,
+									artists: {
+										attributes: true,
+									},
+									albums: {
+										attributes: true,
+									},
+								},
+							},
+						);
+						if (track) {
+							const songs: Schema.Song[] = Formatter.toSong(track).map(
+								(song) => ({ ...song, syncId }),
+							);
+							songChunk.push(...songs);
+
+							if (track.artists?.length) {
+								for (const song of songs) {
+									const links: Schema.SongArtist[] = track.artists.map(
+										(link) => ({
+											songId: song.id,
+											artistId: link.artistUuid,
+											ordinal: link.ordinal,
+											joinPhrase: link.joinPhrase,
+											syncId,
+										}),
+									);
+									songArtistChunk.push(...links);
+								}
+							}
+
+							const genres = new Set<string>();
+							for (const attribute of track.attributes ?? []) {
+								if (attribute.key == "genre" && attribute.type == "string") {
+									for (const value of attribute.values) {
+										genres.add(value);
+									}
+								}
+							}
+
+							for (const genre of genres) {
+								if (!completedGenres.has(genre)) {
+									completedGenres.add(genre);
+									genreChunk.push({ name: genre, syncId });
+								}
+								for (const song of songs) {
+									songGenreChunk.push({
+										songId: song.id,
+										name: genre,
+										syncId,
+									});
+								}
+							}
+						}
+						if (songChunk.length >= 10) {
+							await insertTracks();
 						}
 					} catch (e) {
 						this.logger.error(
-							`Failed to queue Track "${trackId}" in Library "${libraryId}" from Plugin "${pluginId}":`,
+							`Failed to sync Track "${trackId}" in Library "${libraryId}" from Plugin "${pluginId}":`,
 							e,
 						);
 					} finally {
@@ -466,30 +427,36 @@ export class DatabaseManager {
 					}
 				},
 			);
-			await flushTrackBuffer();
 			await insertTracks();
 		}
 
 		if (!onlyNew) {
 			await this.db.delete(Schema.songs).where(ne(Schema.songs.syncId, syncId));
+			await yieldToEventLoop();
 			await this.db
 				.delete(Schema.albums)
 				.where(ne(Schema.albums.syncId, syncId));
+			await yieldToEventLoop();
 			await this.db
 				.delete(Schema.artists)
 				.where(ne(Schema.artists.syncId, syncId));
+			await yieldToEventLoop();
 			await this.db
 				.delete(Schema.albumArtists)
 				.where(ne(Schema.albumArtists.syncId, syncId));
+			await yieldToEventLoop();
 			await this.db
 				.delete(Schema.songArtists)
 				.where(ne(Schema.songArtists.syncId, syncId));
+			await yieldToEventLoop();
 			await this.db
 				.delete(Schema.genres)
 				.where(ne(Schema.genres.syncId, syncId));
+			await yieldToEventLoop();
 			await this.db
 				.delete(Schema.albumGenres)
 				.where(ne(Schema.albumGenres.syncId, syncId));
+			await yieldToEventLoop();
 			await this.db
 				.delete(Schema.songGenres)
 				.where(ne(Schema.songGenres.syncId, syncId));
