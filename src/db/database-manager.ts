@@ -431,6 +431,22 @@ export class DatabaseManager {
 		}
 
 		if (!onlyNew) {
+			await this.db
+				.delete(Schema.albumArtists)
+				.where(ne(Schema.albumArtists.syncId, syncId));
+			await yieldToEventLoop();
+			await this.db
+				.delete(Schema.songArtists)
+				.where(ne(Schema.songArtists.syncId, syncId));
+			await yieldToEventLoop();
+			await this.db
+				.delete(Schema.albumGenres)
+				.where(ne(Schema.albumGenres.syncId, syncId));
+			await yieldToEventLoop();
+			await this.db
+				.delete(Schema.songGenres)
+				.where(ne(Schema.songGenres.syncId, syncId));
+			await yieldToEventLoop();
 			await this.db.delete(Schema.songs).where(ne(Schema.songs.syncId, syncId));
 			await yieldToEventLoop();
 			await this.db
@@ -442,24 +458,8 @@ export class DatabaseManager {
 				.where(ne(Schema.artists.syncId, syncId));
 			await yieldToEventLoop();
 			await this.db
-				.delete(Schema.albumArtists)
-				.where(ne(Schema.albumArtists.syncId, syncId));
-			await yieldToEventLoop();
-			await this.db
-				.delete(Schema.songArtists)
-				.where(ne(Schema.songArtists.syncId, syncId));
-			await yieldToEventLoop();
-			await this.db
 				.delete(Schema.genres)
 				.where(ne(Schema.genres.syncId, syncId));
-			await yieldToEventLoop();
-			await this.db
-				.delete(Schema.albumGenres)
-				.where(ne(Schema.albumGenres.syncId, syncId));
-			await yieldToEventLoop();
-			await this.db
-				.delete(Schema.songGenres)
-				.where(ne(Schema.songGenres.syncId, syncId));
 		}
 	}
 }
