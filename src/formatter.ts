@@ -1,4 +1,4 @@
-import { SavedPlaylist } from "@sdk";
+import { SavedPlaylist } from "@pipe-bomb/plugin-sdk";
 import * as schema from "./db/schema.js";
 import {
 	AlbumID3WithSongs,

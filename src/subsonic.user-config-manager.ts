@@ -3,7 +3,7 @@ import {
 	ConfigNode,
 	UserConfigManager,
 	UserConfigManagerApiContext,
-} from "@sdk";
+} from "@pipe-bomb/plugin-sdk";
 import { SubsonicConfigManager } from "./subsonic.config-manager.js";
 
 export interface UserInfo {

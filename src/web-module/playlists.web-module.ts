@@ -1,4 +1,4 @@
-import { AttributeValue, PlaylistClient, SavedPlaylistTrack } from "@sdk";
+import { AttributeValue, PlaylistClient, SavedPlaylistTrack } from "@pipe-bomb/plugin-sdk";
 import { CreateEndpointFunction, WebModule } from "./web-module.js";
 import { Playlist } from "../types.js";
 import { ErrCode, SubsonicError } from "../subsonic.error.js";

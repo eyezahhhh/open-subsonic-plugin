@@ -1,4 +1,4 @@
-import { AudioSession, DataClient } from "@sdk";
+import { AudioSession, DataClient } from "@pipe-bomb/plugin-sdk";
 
 const MAX_CLIENT_SESSIONS = 3;
 

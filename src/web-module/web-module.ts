@@ -1,4 +1,4 @@
-import { DataClient } from "@sdk";
+import { DataClient } from "@pipe-bomb/plugin-sdk";
 import { Request, Response } from "express";
 import { SubsonicConfigManager } from "../subsonic.config-manager.js";
 import { DatabaseManager } from "../db/database-manager.js";

@@ -1,4 +1,4 @@
-import { DataClient, Logger, PlaylistClient } from "@sdk";
+import { DataClient, Logger, PlaylistClient } from "@pipe-bomb/plugin-sdk";
 import express from "express";
 import { Server } from "http";
 import path from "path";

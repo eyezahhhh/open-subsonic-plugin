@@ -1,4 +1,4 @@
-import { DataClient, Logger } from "@sdk";
+import { DataClient, Logger } from "@pipe-bomb/plugin-sdk";
 import { DBClient } from "./client.js";
 import { randomUUID } from "crypto";
 import Formatter from "./db-formatter.js";

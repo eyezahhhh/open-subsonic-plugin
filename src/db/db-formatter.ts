@@ -1,4 +1,4 @@
-import { SavedAlbum, SavedArtist, SavedTrack } from "@sdk";
+import { SavedAlbum, SavedArtist, SavedTrack } from "@pipe-bomb/plugin-sdk";
 import * as Schema from "./schema.js";
 import { createAttributeRecord, getAttributeValue } from "../util.js";
 import { getArtistString } from "../formatter.js";

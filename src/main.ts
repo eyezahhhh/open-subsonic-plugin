@@ -1,4 +1,4 @@
-import type PipeBomb from "@sdk";
+import type PipeBomb from "@pipe-bomb/plugin-sdk";
 import { WebServer } from "./web-server.js";
 import { SubsonicConfigManager } from "./subsonic.config-manager.js";
 import { getPluginVersion } from "./util.js";

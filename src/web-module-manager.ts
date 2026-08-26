@@ -2,7 +2,7 @@ import { Express, Request, Response } from "express";
 import { ErrCode, SubsonicError } from "./subsonic.error.js";
 import { SubsonicConfigManager } from "./subsonic.config-manager.js";
 import * as crypto from "crypto";
-import { DataClient, Logger } from "@sdk";
+import { DataClient, Logger } from "@pipe-bomb/plugin-sdk";
 import { CreateEndpointFunction, WebModule } from "./web-module/web-module.js";
 import { DatabaseManager } from "./db/database-manager.js";
 import {
