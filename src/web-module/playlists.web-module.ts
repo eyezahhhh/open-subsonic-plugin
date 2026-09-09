@@ -1,4 +1,8 @@
-import { AttributeValue, PlaylistClient, SavedPlaylistTrack } from "@pipe-bomb/plugin-sdk";
+import {
+	AttributeValue,
+	PlaylistClient,
+	SavedPlaylistTrack,
+} from "@pipe-bomb/plugin-sdk";
 import { CreateEndpointFunction, WebModule } from "./web-module.js";
 import { Playlist } from "../types.js";
 import { ErrCode, SubsonicError } from "../subsonic.error.js";
@@ -78,7 +82,7 @@ export class PlaylistsWebModule extends WebModule {
 	}
 
 	bind(endpoint: CreateEndpointFunction): void {
-		const getPlaylist = async (id: string | null, userId?: string) => {
+		const getPlaylist = async (id: string | null) => {
 			if (!id) {
 				throw new SubsonicError(
 					ErrCode.REQUIRED_PARAM_MISSING,
@@ -95,15 +99,19 @@ export class PlaylistsWebModule extends WebModule {
 			if (!playlist) {
 				throw new SubsonicError(ErrCode.NOT_FOUND, "Playlist not found");
 			}
-			if (userId && playlist.ownerUuid != userId) {
-				throw new SubsonicError(ErrCode.UNAUTHORIZED_USER, "Unauthorized");
-			}
 			return playlist;
 		};
 
 		endpoint("getPlaylists", async ({ userId }) => {
-			const playlistIds =
-				await this.playlistClient.getUserPlaylistUuids(userId);
+			const [ownedIds, memberIds] = await Promise.all([
+				this.playlistClient.getUserPlaylistUuids(userId),
+				this.playlistClient.getMemberPlaylistUuids(userId),
+			]);
+			const seen = new Set(ownedIds);
+			const playlistIds = [
+				...ownedIds,
+				...memberIds.filter((id) => !seen.has(id)),
+			];
 			const playlists = await Promise.allSettled(
 				playlistIds.map((id) =>
 					this.playlistClient.getPlaylist(id, {
@@ -137,7 +145,7 @@ export class PlaylistsWebModule extends WebModule {
 
 		endpoint("getPlaylist", async ({ userId, param, db }) => {
 			const id = param("id");
-			const playlist = await getPlaylist(id, userId);
+			const playlist = await getPlaylist(id);
 
 			const songs = await this.convertTracklist(playlist.tracks ?? [], db);
 
@@ -148,7 +156,7 @@ export class PlaylistsWebModule extends WebModule {
 
 		endpoint("updatePlaylist", async ({ userId, param, db }) => {
 			const id = param("playlistId");
-			const playlist = await getPlaylist(id, userId);
+			const playlist = await getPlaylist(id);
 
 			const toRemove = param("songIndexToRemove", true);
 			const toAdd = param("songIdToAdd", true);
@@ -186,6 +194,7 @@ export class PlaylistsWebModule extends WebModule {
 							value: name,
 						},
 					],
+					{ asUser: userId },
 				);
 			}
 		});
@@ -205,13 +214,7 @@ export class PlaylistsWebModule extends WebModule {
 			let playlistId: string;
 
 			if (id) {
-				const playlist = await getPlaylist(id, userId);
-				if (!playlist) {
-					throw new SubsonicError(ErrCode.NOT_FOUND, "Playlist not found");
-				}
-				if (userId && playlist.ownerUuid != userId) {
-					throw new SubsonicError(ErrCode.UNAUTHORIZED_USER, "Unauthorized");
-				}
+				const playlist = await getPlaylist(id);
 				playlistId = playlist.uuid;
 			} else {
 				playlistId = await this.playlistClient.createPlaylist({
@@ -226,7 +229,7 @@ export class PlaylistsWebModule extends WebModule {
 			const songIds = param("songId", true);
 			await this.addSongs(db, playlistId, songIds, userId);
 
-			const playlist = await getPlaylist(playlistId, userId);
+			const playlist = await getPlaylist(playlistId);
 			const songs = await this.convertTracklist(playlist.tracks ?? [], db);
 
 			return {
@@ -236,7 +239,10 @@ export class PlaylistsWebModule extends WebModule {
 
 		endpoint("deletePlaylist", async ({ db, param, userId }) => {
 			const id = param("id");
-			const playlist = await getPlaylist(id, userId);
+			const playlist = await getPlaylist(id);
+			if (userId && playlist.ownerUuid != userId) {
+				throw new SubsonicError(ErrCode.UNAUTHORIZED_USER, "Unauthorized");
+			}
 			await this.playlistClient.deletePlaylist(playlist.uuid, {
 				asUser: userId,
 			});

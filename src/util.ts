@@ -1,4 +1,8 @@
-import { AttributeType, SavedAttribute, SavedAttributeValues } from "@pipe-bomb/plugin-sdk";
+import {
+	AttributeType,
+	SavedAttribute,
+	SavedAttributeValues,
+} from "@pipe-bomb/plugin-sdk";
 import { readFile } from "fs/promises";
 import path from "path";
 

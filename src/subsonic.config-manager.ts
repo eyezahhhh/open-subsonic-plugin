@@ -1,4 +1,8 @@
-import { ConfigManager, ConfigManagerApiContext, ConfigNode } from "@pipe-bomb/plugin-sdk";
+import {
+	ConfigManager,
+	ConfigManagerApiContext,
+	ConfigNode,
+} from "@pipe-bomb/plugin-sdk";
 import { isValidUrl } from "./util.js";
 
 export class SubsonicConfigManager implements ConfigManager {

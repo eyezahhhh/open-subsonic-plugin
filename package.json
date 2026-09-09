@@ -20,7 +20,7 @@
 		"node": "24.14.1"
 	},
 	"dependencies": {
-		"@pipe-bomb/plugin-sdk": "^0.0.2",
+		"@pipe-bomb/plugin-sdk": "^0.0.6",
 		"better-sqlite3": "^12.11.1",
 		"drizzle-kit": "^0.31.10",
 		"drizzle-orm": "^0.45.2",
