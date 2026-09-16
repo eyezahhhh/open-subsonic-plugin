@@ -1,4 +1,9 @@
-import { DataClient, Logger, PlaylistClient } from "@pipe-bomb/plugin-sdk";
+import {
+	DataClient,
+	Logger,
+	PlaybackHistoryClient,
+	PlaylistClient,
+} from "@pipe-bomb/plugin-sdk";
 import express from "express";
 import { Server } from "http";
 import path from "path";
@@ -14,6 +19,7 @@ import { DatabaseManager } from "./db/database-manager.js";
 import { SearchingWebModule } from "./web-module/searching.web-module.js";
 import { BookmarksWebModule } from "./web-module/bookmarks.web-module.js";
 import { SubsonicUserConfigManager } from "./subsonic.user-config-manager.js";
+import { ScrobbleWebModule } from "./web-module/scrobble.web-module.js";
 
 export class WebServer {
 	private server: Server | null = null;
@@ -25,6 +31,7 @@ export class WebServer {
 		private readonly logger: Logger,
 		authConfigManager: SubsonicUserConfigManager,
 		client: DataClient,
+		playbackHistoryClient: PlaybackHistoryClient,
 		sessionManager: SessionManager,
 		playlistClient: PlaylistClient,
 		databaseManager: DatabaseManager,
@@ -34,6 +41,7 @@ export class WebServer {
 			authConfigManager,
 			logger,
 			client,
+			playbackHistoryClient,
 			databaseManager,
 			pluginVersion,
 		);
@@ -47,6 +55,7 @@ export class WebServer {
 			new PlaylistsWebModule(playlistClient),
 			new SearchingWebModule(),
 			new BookmarksWebModule(),
+			new ScrobbleWebModule(),
 		);
 	}
 

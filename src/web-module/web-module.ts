@@ -1,11 +1,7 @@
-import { DataClient } from "@pipe-bomb/plugin-sdk";
+import { DataClient, PlaybackHistoryClient } from "@pipe-bomb/plugin-sdk";
 import { Request, Response } from "express";
-import { SubsonicConfigManager } from "../subsonic.config-manager.js";
 import { DatabaseManager } from "../db/database-manager.js";
-import {
-	SubsonicUserConfigManager,
-	UserInfo,
-} from "../subsonic.user-config-manager.js";
+import { UserInfo } from "../subsonic.user-config-manager.js";
 
 export type ParamFunction = <T extends boolean = false>(
 	id: string,
@@ -25,6 +21,7 @@ export type CreateEndpointFunction = <
 		param: ParamFunction;
 		response: Response;
 		dataClient: DataClient;
+		playbackHistoryClient: PlaybackHistoryClient;
 		db: DatabaseManager;
 		// authConfigManager: SubsonicUserConfigManager;
 	}) => M extends true

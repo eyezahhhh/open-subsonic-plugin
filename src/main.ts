@@ -64,6 +64,7 @@ export default class Plugin implements PipeBomb.Plugin {
 					this.logger,
 					userConfigManager,
 					this.api.getDataClient(),
+					this.api.getPlaybackHistoryClient(),
 					sessionManager,
 					playlistClient,
 					database,

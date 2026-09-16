@@ -2,7 +2,11 @@ import { Express, Request, Response } from "express";
 import { ErrCode, SubsonicError } from "./subsonic.error.js";
 import { SubsonicConfigManager } from "./subsonic.config-manager.js";
 import * as crypto from "crypto";
-import { DataClient, Logger } from "@pipe-bomb/plugin-sdk";
+import {
+	DataClient,
+	Logger,
+	PlaybackHistoryClient,
+} from "@pipe-bomb/plugin-sdk";
 import { CreateEndpointFunction, WebModule } from "./web-module/web-module.js";
 import { DatabaseManager } from "./db/database-manager.js";
 import {
@@ -17,6 +21,7 @@ export class WebModuleManager {
 		private readonly authConfigManager: SubsonicUserConfigManager,
 		private readonly logger: Logger,
 		private readonly dataClient: DataClient,
+		private readonly playbackHistoryClient: PlaybackHistoryClient,
 		private readonly databaseManager: DatabaseManager,
 		private readonly pluginVersion: string,
 	) {}
@@ -141,6 +146,7 @@ export class WebModuleManager {
 						},
 						response: res,
 						dataClient: this.dataClient,
+						playbackHistoryClient: this.playbackHistoryClient,
 						// configManager: this.configManager,
 						db: this.databaseManager,
 					});
