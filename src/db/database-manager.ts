@@ -7,7 +7,7 @@ import { DBClient } from "./client.js";
 import { randomUUID } from "crypto";
 import Formatter from "./db-formatter.js";
 import * as Schema from "./schema.js";
-import { eq, ne, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 
 export class DatabaseManager {
 	constructor(
@@ -19,6 +19,81 @@ export class DatabaseManager {
 
 	getClient() {
 		return this.db;
+	}
+
+	async setSaved(
+		kind: "track" | "album" | "artist",
+		userId: string,
+		id: string,
+		saved: boolean,
+	) {
+		const syncId = "event";
+		const dateSaved = Date.now();
+		try {
+			if (kind === "track") {
+				if (saved) {
+					await this.db
+						.insert(Schema.songSaves)
+						.values({ songId: id, userId, syncId, dateSaved })
+						.onConflictDoUpdate({
+							target: [Schema.songSaves.songId, Schema.songSaves.userId],
+							set: { syncId, dateSaved },
+						});
+				} else {
+					await this.db
+						.delete(Schema.songSaves)
+						.where(
+							and(
+								eq(Schema.songSaves.songId, id),
+								eq(Schema.songSaves.userId, userId),
+							),
+						);
+				}
+			} else if (kind === "album") {
+				if (saved) {
+					await this.db
+						.insert(Schema.albumSaves)
+						.values({ albumId: id, userId, syncId, dateSaved })
+						.onConflictDoUpdate({
+							target: [Schema.albumSaves.albumId, Schema.albumSaves.userId],
+							set: { syncId, dateSaved },
+						});
+				} else {
+					await this.db
+						.delete(Schema.albumSaves)
+						.where(
+							and(
+								eq(Schema.albumSaves.albumId, id),
+								eq(Schema.albumSaves.userId, userId),
+							),
+						);
+				}
+			} else {
+				if (saved) {
+					await this.db
+						.insert(Schema.artistSaves)
+						.values({ artistId: id, userId, syncId, dateSaved })
+						.onConflictDoUpdate({
+							target: [Schema.artistSaves.artistId, Schema.artistSaves.userId],
+							set: { syncId, dateSaved },
+						});
+				} else {
+					await this.db
+						.delete(Schema.artistSaves)
+						.where(
+							and(
+								eq(Schema.artistSaves.artistId, id),
+								eq(Schema.artistSaves.userId, userId),
+							),
+						);
+				}
+			}
+		} catch (e) {
+			this.logger.error(
+				`Failed to ${saved ? "save" : "unsave"} ${kind} "${id}" for user "${userId}":`,
+				e,
+			);
+		}
 	}
 
 	async sync(onlyNew: boolean, onProgress: (fraction: number) => void) {
@@ -448,7 +523,7 @@ export class DatabaseManager {
 				);
 
 				if (chunk.length) {
-					this.db
+					await this.db
 						.insert(Schema.songSaves)
 						.values(
 							chunk.map(({ uuid, dateSaved }) => ({
@@ -462,6 +537,7 @@ export class DatabaseManager {
 							target: [Schema.songSaves.songId, Schema.songSaves.userId],
 							set: {
 								syncId: sql`excluded.sync_id`,
+								dateSaved: sql`excluded.date_saved`,
 							},
 						});
 				}
@@ -478,7 +554,7 @@ export class DatabaseManager {
 				);
 
 				if (chunk.length) {
-					this.db
+					await this.db
 						.insert(Schema.albumSaves)
 						.values(
 							chunk.map(({ uuid, dateSaved }) => ({
@@ -492,6 +568,7 @@ export class DatabaseManager {
 							target: [Schema.albumSaves.albumId, Schema.albumSaves.userId],
 							set: {
 								syncId: sql`excluded.sync_id`,
+								dateSaved: sql`excluded.date_saved`,
 							},
 						});
 				}
@@ -508,7 +585,7 @@ export class DatabaseManager {
 				);
 
 				if (chunk.length) {
-					this.db
+					await this.db
 						.insert(Schema.artistSaves)
 						.values(
 							chunk.map(({ uuid, dateSaved }) => ({
@@ -522,6 +599,7 @@ export class DatabaseManager {
 							target: [Schema.artistSaves.artistId, Schema.artistSaves.userId],
 							set: {
 								syncId: sql`excluded.sync_id`,
+								dateSaved: sql`excluded.date_saved`,
 							},
 						});
 				}

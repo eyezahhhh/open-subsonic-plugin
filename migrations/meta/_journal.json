@@ -15,6 +15,13 @@
 			"when": 1783141257267,
 			"tag": "0001_aspiring_nightcrawler",
 			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "6",
+			"when": 1791713503828,
+			"tag": "0002_salty_captain_cross",
+			"breakpoints": true
 		}
 	]
 }

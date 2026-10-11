@@ -1,9 +1,10 @@
 import { ErrCode, SubsonicError } from "../subsonic.error.js";
 import { CreateEndpointFunction, WebModule } from "./web-module.js";
-import { sql, exists, and, eq } from "drizzle-orm";
-import { formatAlbum, formatSong } from "../formatter.js";
+import { sql, exists, and, desc, eq } from "drizzle-orm";
+import { formatAlbum, formatAlbumChild, formatArtist, formatSong } from "../formatter.js";
 import { randomUUID } from "crypto";
 import * as Schema from "../db/schema.js";
+import { DatabaseManager } from "../db/database-manager.js";
 
 export class AlbumWebModule extends WebModule {
 	private randomSeed = randomUUID();
@@ -17,7 +18,7 @@ export class AlbumWebModule extends WebModule {
 	}
 
 	bind(endpoint: CreateEndpointFunction): void {
-		endpoint("getAlbumList2", async ({ param, db }) => {
+		endpoint("getAlbumList2", async ({ param, db, userId }) => {
 			const type = param("type");
 			const sizeString = param("size");
 			const offsetString = param("offset");
@@ -116,9 +117,18 @@ export class AlbumWebModule extends WebModule {
 					offset,
 					limit: size,
 					with: {
+						saves: {
+							where: eq(Schema.albumSaves.userId, userId),
+						},
 						albumArtists: {
 							with: {
-								artist: true,
+								artist: {
+									with: {
+										saves: {
+											where: eq(Schema.artistSaves.userId, userId),
+										},
+									},
+								},
 							},
 						},
 						albumGenres: true,
@@ -134,17 +144,49 @@ export class AlbumWebModule extends WebModule {
 			return response;
 		});
 
-		endpoint("getStarred2", () => {
+		endpoint("getStarred", async ({ db, userId }) => {
+			const { artistSaves, albumSaves, songSaves } = await this.fetchStarred(
+				db,
+				userId,
+			);
+
 			return {
-				starred2: {
-					artist: [],
-					album: [],
-					song: [],
+				starred: {
+					artist: artistSaves
+						.filter((save) => !!save.artist)
+						.map((save) => formatArtist(save.artist!)),
+					album: albumSaves
+						.filter((save) => !!save.album)
+						.map((save) => formatAlbumChild(save.album!)),
+					song: songSaves
+						.filter((save) => !!save.song)
+						.map((save) => formatSong(save.song!)),
 				},
 			};
 		});
 
-		endpoint("getSongsByGenre", async ({ param, db }) => {
+		endpoint("getStarred2", async ({ db, userId }) => {
+			const { artistSaves, albumSaves, songSaves } = await this.fetchStarred(
+				db,
+				userId,
+			);
+
+			return {
+				starred2: {
+					artist: artistSaves
+						.filter((save) => !!save.artist)
+						.map((save) => formatArtist(save.artist!)),
+					album: albumSaves
+						.filter((save) => !!save.album)
+						.map((save) => formatAlbum(save.album!)),
+					song: songSaves
+						.filter((save) => !!save.song)
+						.map((save) => formatSong(save.song!)),
+				},
+			};
+		});
+
+		endpoint("getSongsByGenre", async ({ param, db, userId }) => {
 			const genre = param("genre");
 			if (!genre) {
 				throw new SubsonicError(
@@ -183,10 +225,19 @@ export class AlbumWebModule extends WebModule {
 						),
 				),
 				with: {
+					saves: {
+						where: eq(Schema.songSaves.userId, userId),
+					},
 					album: true,
 					songArtists: {
 						with: {
-							artist: true,
+							artist: {
+								with: {
+									saves: {
+										where: eq(Schema.artistSaves.userId, userId),
+									},
+								},
+							},
 						},
 					},
 					songGenres: true,
@@ -201,5 +252,76 @@ export class AlbumWebModule extends WebModule {
 				},
 			};
 		});
+	}
+
+	private async fetchStarred(db: DatabaseManager, userId: string) {
+		const [artistSaves, albumSaves, songSaves] = await Promise.all([
+			db.getClient().query.artistSaves.findMany({
+				where: eq(Schema.artistSaves.userId, userId),
+				orderBy: desc(Schema.artistSaves.dateSaved),
+				with: {
+					artist: {
+						with: {
+							saves: {
+								where: eq(Schema.artistSaves.userId, userId),
+							},
+						},
+					},
+				},
+			}),
+			db.getClient().query.albumSaves.findMany({
+				where: eq(Schema.albumSaves.userId, userId),
+				orderBy: desc(Schema.albumSaves.dateSaved),
+				with: {
+					album: {
+						with: {
+							saves: {
+								where: eq(Schema.albumSaves.userId, userId),
+							},
+							albumArtists: {
+								with: {
+									artist: {
+										with: {
+											saves: {
+												where: eq(Schema.artistSaves.userId, userId),
+											},
+										},
+									},
+								},
+							},
+							albumGenres: true,
+						},
+					},
+				},
+			}),
+			db.getClient().query.songSaves.findMany({
+				where: eq(Schema.songSaves.userId, userId),
+				orderBy: desc(Schema.songSaves.dateSaved),
+				with: {
+					song: {
+						with: {
+							saves: {
+								where: eq(Schema.songSaves.userId, userId),
+							},
+							album: true,
+							songArtists: {
+								with: {
+									artist: {
+										with: {
+											saves: {
+												where: eq(Schema.artistSaves.userId, userId),
+											},
+										},
+									},
+								},
+							},
+							songGenres: true,
+						},
+					},
+				},
+			}),
+		]);
+
+		return { artistSaves, albumSaves, songSaves };
 	}
 }

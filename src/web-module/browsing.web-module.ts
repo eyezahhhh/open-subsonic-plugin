@@ -25,12 +25,17 @@ export class BrowsingWebModule extends WebModule {
 			// console.log({ id });
 		});
 
-		endpoint("getArtists", async ({ db }) => {
+		endpoint("getArtists", async ({ db, userId }) => {
 			const response: schema.Artist[] = await db
 				.getClient()
-				.select()
-				.from(schema.artists)
-				.orderBy(sql`${schema.artists.name} COLLATE NOCASE ASC`);
+				.query.artists.findMany({
+					with: {
+						saves: {
+							where: eq(schema.artistSaves.userId, userId),
+						},
+					},
+					orderBy: sql`${schema.artists.name} COLLATE NOCASE ASC`,
+				});
 
 			const groups: Record<string, ArtistID3[]> = {};
 			for (const entry of response) {
@@ -65,7 +70,7 @@ export class BrowsingWebModule extends WebModule {
 			};
 		});
 
-		endpoint("getArtist", async ({ param, db }) => {
+		endpoint("getArtist", async ({ param, db, userId }) => {
 			const id = param("id");
 			if (!id) {
 				throw new SubsonicError(ErrCode.NOT_FOUND, "Artist ID not specified");
@@ -74,13 +79,25 @@ export class BrowsingWebModule extends WebModule {
 			const artist = await db.getClient().query.artists.findFirst({
 				where: eq(schema.artists.id, id),
 				with: {
+					saves: {
+						where: eq(schema.artistSaves.userId, userId),
+					},
 					albumArtists: {
 						with: {
 							album: {
 								with: {
+									saves: {
+										where: eq(schema.albumSaves.userId, userId),
+									},
 									albumArtists: {
 										with: {
-											artist: true,
+											artist: {
+												with: {
+													saves: {
+														where: eq(schema.artistSaves.userId, userId),
+													},
+												},
+											},
 										},
 									},
 								},
@@ -99,7 +116,7 @@ export class BrowsingWebModule extends WebModule {
 			};
 		});
 
-		endpoint("getAlbum", async ({ param, db }) => {
+		endpoint("getAlbum", async ({ param, db, userId }) => {
 			const id = param("id");
 			if (!id) {
 				throw new SubsonicError(ErrCode.NOT_FOUND, "Album ID not specified");
@@ -108,16 +125,34 @@ export class BrowsingWebModule extends WebModule {
 			const album = await db.getClient().query.albums.findFirst({
 				where: eq(schema.albums.id, id),
 				with: {
+					saves: {
+						where: eq(schema.albumSaves.userId, userId),
+					},
 					albumArtists: {
 						with: {
-							artist: true,
+							artist: {
+								with: {
+									saves: {
+										where: eq(schema.artistSaves.userId, userId),
+									},
+								},
+							},
 						},
 					},
 					songs: {
 						with: {
+							saves: {
+								where: eq(schema.songSaves.userId, userId),
+							},
 							songArtists: {
 								with: {
-									artist: true,
+									artist: {
+										with: {
+											saves: {
+												where: eq(schema.artistSaves.userId, userId),
+											},
+										},
+									},
 								},
 							},
 							album: true,
@@ -137,7 +172,7 @@ export class BrowsingWebModule extends WebModule {
 			};
 		});
 
-		endpoint("getSong", async ({ param, db }) => {
+		endpoint("getSong", async ({ param, db, userId }) => {
 			const id = param("id");
 			if (!id) {
 				throw new SubsonicError(ErrCode.NOT_FOUND, "Track ID not specified");
@@ -146,9 +181,18 @@ export class BrowsingWebModule extends WebModule {
 			const song = await db.getClient().query.songs.findFirst({
 				where: eq(schema.songs.id, id),
 				with: {
+					saves: {
+						where: eq(schema.songSaves.userId, userId),
+					},
 					songArtists: {
 						with: {
-							artist: true,
+							artist: {
+								with: {
+									saves: {
+										where: eq(schema.artistSaves.userId, userId),
+									},
+								},
+							},
 						},
 					},
 					album: true,

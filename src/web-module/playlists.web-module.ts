@@ -8,7 +8,7 @@ import { Playlist } from "../types.js";
 import { ErrCode, SubsonicError } from "../subsonic.error.js";
 import { formatPlaylist } from "../formatter.js";
 import { DatabaseManager } from "../db/database-manager.js";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import * as Schema from "../db/schema.js";
 
 export class PlaylistsWebModule extends WebModule {
@@ -19,6 +19,7 @@ export class PlaylistsWebModule extends WebModule {
 	private async convertTracklist(
 		tracks: SavedPlaylistTrack[],
 		db: DatabaseManager,
+		userId: string,
 	) {
 		if (!tracks.length) {
 			return [];
@@ -46,10 +47,19 @@ export class PlaylistsWebModule extends WebModule {
 					chunk.map((entry) => entry.trackUuid),
 				),
 				with: {
+					saves: {
+						where: eq(Schema.songSaves.userId, userId),
+					},
 					album: true,
 					songArtists: {
 						with: {
-							artist: true,
+							artist: {
+								with: {
+									saves: {
+										where: eq(Schema.artistSaves.userId, userId),
+									},
+								},
+							},
 						},
 					},
 					songGenres: true,
@@ -151,7 +161,7 @@ export class PlaylistsWebModule extends WebModule {
 			const id = param("id");
 			const playlist = await getPlaylist(id);
 
-			const songs = await this.convertTracklist(playlist.tracks ?? [], db);
+			const songs = await this.convertTracklist(playlist.tracks ?? [], db, userId);
 
 			return {
 				playlist: formatPlaylist(playlist, songs),
@@ -234,7 +244,7 @@ export class PlaylistsWebModule extends WebModule {
 			await this.addSongs(db, playlistId, songIds, userId);
 
 			const playlist = await getPlaylist(playlistId);
-			const songs = await this.convertTracklist(playlist.tracks ?? [], db);
+			const songs = await this.convertTracklist(playlist.tracks ?? [], db, userId);
 
 			return {
 				playlist: formatPlaylist(playlist, songs),

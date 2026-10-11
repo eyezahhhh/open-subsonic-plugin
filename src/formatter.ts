@@ -9,6 +9,15 @@ import {
 } from "./types.js";
 import { createAttributeRecord, getAttributeValue } from "./util.js";
 
+function getStarred(
+	saves?: { dateSaved?: number | null }[] | null,
+): string | undefined {
+	if (!saves?.length) {
+		return undefined;
+	}
+	return new Date(saves[0]!.dateSaved ?? 0).toISOString();
+}
+
 export function formatArtist(artist: schema.Artist): Artist {
 	const response: Artist = {
 		id: artist.id,
@@ -16,6 +25,7 @@ export function formatArtist(artist: schema.Artist): Artist {
 		coverArt: artist.coverArt ?? "",
 		musicBrainzId: artist.musicBrainzId ?? "",
 		albumCount: artist.albumCount ?? 0,
+		starred: getStarred(artist.saves),
 	};
 
 	if (artist.albumArtists) {
@@ -73,6 +83,7 @@ export function formatAlbum(album: schema.Album): AlbumID3WithSongs {
 		artist: artistName,
 		artistId,
 		artists,
+		starred: getStarred(album.saves),
 		genres: album.albumGenres?.map((genre) => ({
 			name: genre.name!,
 		})),
@@ -86,6 +97,37 @@ export function formatAlbum(album: schema.Album): AlbumID3WithSongs {
 	}
 
 	return response;
+}
+
+export function formatAlbumChild(album: schema.Album): Child {
+	let artistName = "";
+	let artistId = "";
+	if (album.albumArtists?.length) {
+		const sorted = [...album.albumArtists].sort(
+			(a, b) => a.ordinal! - b.ordinal!,
+		);
+		const primaryArtist = sorted[0]!;
+		artistName = primaryArtist.artist?.name ?? "Unknown Artist";
+		artistId = primaryArtist.artistId!;
+	}
+
+	return {
+		id: album.id,
+		parent: artistId,
+		isDir: true,
+		title: album.title,
+		name: album.title,
+		album: album.title,
+		artist: artistName,
+		artistId,
+		coverArt: album.coverArt ?? "",
+		songCount: album.songCount ?? 0,
+		duration: Math.round(album.duration ?? 0),
+		created: new Date(album.dateCreated ?? 0).toISOString(),
+		year: album.year ?? undefined,
+		genre: album.albumGenres?.[0]?.name ?? undefined,
+		starred: getStarred(album.saves),
+	};
 }
 
 export function blankAlbum(uuid: string): AlbumID3WithSongs {
@@ -143,6 +185,7 @@ export function formatSong(song: Omit<schema.Song, "syncId">): Child {
 		albumId: song.albumId ?? "",
 		contentType: "audio/mpeg",
 		created: new Date(song.dateCreated ?? 0).toISOString(),
+		starred: getStarred(song.saves),
 		genres: song.songGenres?.map((genre) => ({
 			name: genre.name!,
 		})),

@@ -132,9 +132,7 @@ export const songs = sqliteTable(
 export const songSaves = sqliteTable(
 	"song_saves",
 	{
-		songId: text("song_id").references(() => songs.originalUuid, {
-			onDelete: "cascade",
-		}),
+		songId: text("song_id"),
 		userId: text("user_id").notNull(),
 		dateSaved: integer("date_saved"),
 		syncId: text("sync_id").notNull(),
@@ -184,7 +182,10 @@ export const albumsRelations = relations(albums, ({ many }) => ({
 	saves: many(albumSaves),
 }));
 export const albumSavesRelations = relations(albumSaves, ({ one }) => ({
-	album: one(albums),
+	album: one(albums, {
+		fields: [albumSaves.albumId],
+		references: [albums.id],
+	}),
 }));
 export const albumGenresRelations = relations(albumGenres, ({ one }) => ({
 	album: one(albums, {
@@ -199,7 +200,10 @@ export const artistsRelations = relations(artists, ({ many }) => ({
 	saves: many(artistSaves),
 }));
 export const artistSavesRelations = relations(artistSaves, ({ one }) => ({
-	artist: one(artists),
+	artist: one(artists, {
+		fields: [artistSaves.artistId],
+		references: [artists.id],
+	}),
 }));
 
 export const albumArtistsRelations = relations(albumArtists, ({ one }) => ({
@@ -220,7 +224,10 @@ export const songsRelations = relations(songs, ({ one, many }) => ({
 	saves: many(songSaves),
 }));
 export const songSavesRelations = relations(songSaves, ({ one }) => ({
-	song: one(songs),
+	song: one(songs, {
+		fields: [songSaves.songId],
+		references: [songs.originalUuid],
+	}),
 }));
 export const songGenresRelations = relations(songGenres, ({ one }) => ({
 	song: one(songs, { fields: [songGenres.songId], references: [songs.id] }),

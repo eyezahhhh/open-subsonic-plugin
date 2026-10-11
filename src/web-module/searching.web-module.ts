@@ -1,4 +1,4 @@
-import { like } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { CreateEndpointFunction, WebModule } from "./web-module.js";
 import { SearchResult3 } from "../types.js";
 import { formatAlbum, formatArtist, formatSong } from "../formatter.js";
@@ -40,6 +40,11 @@ export class SearchingWebModule extends WebModule {
 					where: query?.length
 						? like(Schema.artists.name, `%${query}%`)
 						: undefined,
+					with: {
+						saves: {
+							where: eq(Schema.artistSaves.userId, userId),
+						},
+					},
 					limit: artistCount,
 					offset: artistOffset,
 				});
@@ -50,9 +55,18 @@ export class SearchingWebModule extends WebModule {
 				const albums = await db.getClient().query.albums.findMany({
 					where: query ? like(Schema.albums.title, `%${query}%`) : undefined,
 					with: {
+						saves: {
+							where: eq(Schema.albumSaves.userId, userId),
+						},
 						albumArtists: {
 							with: {
-								artist: true,
+								artist: {
+									with: {
+										saves: {
+											where: eq(Schema.artistSaves.userId, userId),
+										},
+									},
+								},
 							},
 						},
 					},
@@ -66,9 +80,18 @@ export class SearchingWebModule extends WebModule {
 				const songs = await db.getClient().query.songs.findMany({
 					where: query ? like(Schema.songs.title, `%${query}%`) : undefined,
 					with: {
+						saves: {
+							where: eq(Schema.songSaves.userId, userId),
+						},
 						songArtists: {
 							with: {
-								artist: true,
+								artist: {
+									with: {
+										saves: {
+											where: eq(Schema.artistSaves.userId, userId),
+										},
+									},
+								},
 							},
 						},
 						album: {

@@ -105,6 +105,7 @@ export interface Child {
 	parent?: string;
 	isDir: boolean;
 	title: string;
+	name?: string;
 	album?: string;
 	artist?: string;
 	track?: number;
@@ -125,6 +126,7 @@ export interface Child {
 	userRating?: number;
 	averageRating?: number;
 	playCount?: number;
+	songCount?: number;
 	discNumber?: number;
 	created?: string;
 	starred?: string;
