@@ -26,6 +26,23 @@ export const albums = sqliteTable("albums", {
 	musicBrainzId: text("musicbrainz_id"),
 });
 
+export const albumSaves = sqliteTable(
+	"album_saves",
+	{
+		albumId: text("album_id").references(() => albums.id, {
+			onDelete: "cascade",
+		}),
+		userId: text("user_id").notNull(),
+		dateSaved: integer("date_saved"),
+		syncId: text("sync_id").notNull(),
+	},
+	(table) => [
+		primaryKey({
+			columns: [table.albumId, table.userId],
+		}),
+	],
+);
+
 export const albumGenres = sqliteTable(
 	"album_genres",
 	{
@@ -51,6 +68,23 @@ export const artists = sqliteTable("artists", {
 	albumCount: integer("album_count"),
 	musicBrainzId: text("musicbrainz_id"),
 });
+
+export const artistSaves = sqliteTable(
+	"artist_saves",
+	{
+		artistId: text("artist_id").references(() => artists.id, {
+			onDelete: "cascade",
+		}),
+		userId: text("user_id").notNull(),
+		dateSaved: integer("date_saved"),
+		syncId: text("sync_id").notNull(),
+	},
+	(table) => [
+		primaryKey({
+			columns: [table.artistId, table.userId],
+		}),
+	],
+);
 
 export const albumArtists = sqliteTable(
 	"album_artists",
@@ -95,6 +129,23 @@ export const songs = sqliteTable(
 	(table) => [index("songs_original_uuid_idx").on(table.originalUuid)],
 );
 
+export const songSaves = sqliteTable(
+	"song_saves",
+	{
+		songId: text("song_id").references(() => songs.originalUuid, {
+			onDelete: "cascade",
+		}),
+		userId: text("user_id").notNull(),
+		dateSaved: integer("date_saved"),
+		syncId: text("sync_id").notNull(),
+	},
+	(table) => [
+		primaryKey({
+			columns: [table.songId, table.userId],
+		}),
+	],
+);
+
 export const songGenres = sqliteTable(
 	"song_genres",
 	{
@@ -130,6 +181,10 @@ export const albumsRelations = relations(albums, ({ many }) => ({
 	albumArtists: many(albumArtists),
 	songs: many(songs),
 	albumGenres: many(albumGenres),
+	saves: many(albumSaves),
+}));
+export const albumSavesRelations = relations(albumSaves, ({ one }) => ({
+	album: one(albums),
 }));
 export const albumGenresRelations = relations(albumGenres, ({ one }) => ({
 	album: one(albums, {
@@ -141,6 +196,10 @@ export const albumGenresRelations = relations(albumGenres, ({ one }) => ({
 
 export const artistsRelations = relations(artists, ({ many }) => ({
 	albumArtists: many(albumArtists),
+	saves: many(artistSaves),
+}));
+export const artistSavesRelations = relations(artistSaves, ({ one }) => ({
+	artist: one(artists),
 }));
 
 export const albumArtistsRelations = relations(albumArtists, ({ one }) => ({
@@ -158,6 +217,10 @@ export const songsRelations = relations(songs, ({ one, many }) => ({
 	album: one(albums, { fields: [songs.albumId], references: [albums.id] }),
 	songArtists: many(songArtists),
 	songGenres: many(songGenres),
+	saves: many(songSaves),
+}));
+export const songSavesRelations = relations(songSaves, ({ one }) => ({
+	song: one(songs),
 }));
 export const songGenresRelations = relations(songGenres, ({ one }) => ({
 	song: one(songs, { fields: [songGenres.songId], references: [songs.id] }),
@@ -181,10 +244,18 @@ export type Album = InferInsertModel<typeof albums> & {
 	albumArtists?: AlbumArtist[] | null;
 	songs?: Song[] | null;
 	albumGenres?: AlbumGenre[] | null;
+	saves?: AlbumSave[] | null;
+};
+export type AlbumSave = InferInsertModel<typeof albumSaves> & {
+	album?: Album;
 };
 export type AlbumGenre = InferInsertModel<typeof albumGenres>;
 export type Artist = InferInsertModel<typeof artists> & {
 	albumArtists?: AlbumArtist[] | null;
+	saves?: ArtistSave[] | null;
+};
+export type ArtistSave = InferInsertModel<typeof artistSaves> & {
+	artist?: Artist;
 };
 export type AlbumArtist = InferInsertModel<typeof albumArtists> & {
 	artist?: Artist | null;
@@ -194,6 +265,10 @@ export type Song = InferInsertModel<typeof songs> & {
 	songArtists?: SongArtist[] | null;
 	album?: Album | null;
 	songGenres?: SongGenre[] | null;
+	saves?: SongSave[] | null;
+};
+export type SongSave = InferInsertModel<typeof songSaves> & {
+	song?: Song;
 };
 export type SongGenre = InferInsertModel<typeof songGenres>;
 export type SongArtist = InferInsertModel<typeof songArtists> & {

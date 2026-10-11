@@ -7,12 +7,13 @@ import path from "path";
 import { createDatabaseClient } from "./db/client.js";
 import { DatabaseManager } from "./db/database-manager.js";
 import { SubsonicUserConfigManager } from "./subsonic.user-config-manager.js";
+import { EventManager } from "./event-manager.js";
 
 export default class Plugin implements PipeBomb.Plugin {
 	private api!: PipeBomb.PluginApiContext;
 	private logger!: PipeBomb.Logger;
 
-	enable(apiContext: PipeBomb.PluginApiContext) {
+	async enable(apiContext: PipeBomb.PluginApiContext) {
 		this.api = apiContext;
 		this.logger = apiContext.getLogger();
 
@@ -38,65 +39,67 @@ export default class Plugin implements PipeBomb.Plugin {
 
 		const playlistClient = this.api.getPlaylistClient();
 
-		this.api.requestCacheDirectory().then((cacheDir) =>
-			getPluginVersion().then((pluginVersion) => {
-				const dbFile = path.join(cacheDir, "database.sqlite");
-				const dbClient = createDatabaseClient(dbFile);
+		const cacheDir = await this.api.requestCacheDirectory();
+		const pluginVersion = await getPluginVersion();
 
-				const database = new DatabaseManager(
-					dbClient,
-					this.api.getDataClient(),
-					this.logger,
-				);
+		const dbFile = path.join(cacheDir, "database.sqlite");
+		const dbClient = createDatabaseClient(dbFile);
 
-				this.api.registerTask<"all" | "new">({
-					id: "sync",
-					resumable: false,
-					getSubTasks: () => ["all", "new"],
-					run: async (ctx, subTaskId) => {
-						await database.sync(subTaskId == "new", ctx.update);
-					},
-				});
-
-				const sessionManager = new SessionManager(this.api.getDataClient());
-
-				const webServer = new WebServer(
-					this.logger,
-					userConfigManager,
-					this.api.getDataClient(),
-					this.api.getPlaybackHistoryClient(),
-					sessionManager,
-					playlistClient,
-					database,
-					pluginVersion,
-				);
-
-				const startServer = () => {
-					const port = configManager.getPort();
-					const currentPort = webServer.getPort();
-					const prefix = configManager.getPrefix();
-					const currentPrefix = webServer.getPrefix();
-
-					if (
-						currentPort &&
-						currentPort == port &&
-						currentPrefix &&
-						currentPrefix == prefix
-					) {
-						return;
-					}
-
-					if (port) {
-						webServer.listen(port, prefix);
-					} else {
-						webServer.close();
-					}
-				};
-
-				configManager.addListener(startServer);
-				startServer();
-			}),
+		const database = new DatabaseManager(
+			dbClient,
+			this.api.getDataClient(),
+			this.api.getPlaybackHistoryClient(),
+			this.logger,
 		);
+
+		const eventManager = new EventManager(this.api.getDataClient(), database);
+
+		this.api.registerTask<"all" | "new">({
+			id: "sync",
+			resumable: false,
+			getSubTasks: () => ["all", "new"],
+			run: async (ctx, subTaskId) => {
+				await database.sync(subTaskId == "new", ctx.update);
+			},
+		});
+
+		const sessionManager = new SessionManager(this.api.getDataClient());
+
+		const webServer = new WebServer(
+			this.logger,
+			userConfigManager,
+			this.api.getDataClient(),
+			this.api.getPlaybackHistoryClient(),
+			sessionManager,
+			playlistClient,
+			database,
+			pluginVersion,
+		);
+
+		const startServer = () => {
+			const port = configManager.getPort();
+			const currentPort = webServer.getPort();
+			const prefix = configManager.getPrefix();
+			const currentPrefix = webServer.getPrefix();
+
+			if (
+				currentPort &&
+				currentPort == port &&
+				currentPrefix &&
+				currentPrefix == prefix
+			) {
+				return;
+			}
+
+			if (port) {
+				webServer.listen(port, prefix);
+			} else {
+				webServer.close();
+			}
+		};
+
+		configManager.addListener(startServer);
+		startServer();
 	}
 
 	disable() {}

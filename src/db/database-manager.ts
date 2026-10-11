@@ -1,4 +1,8 @@
-import { DataClient, Logger } from "@pipe-bomb/plugin-sdk";
+import {
+	DataClient,
+	Logger,
+	PlaybackHistoryClient,
+} from "@pipe-bomb/plugin-sdk";
 import { DBClient } from "./client.js";
 import { randomUUID } from "crypto";
 import Formatter from "./db-formatter.js";
@@ -9,6 +13,7 @@ export class DatabaseManager {
 	constructor(
 		private readonly db: DBClient,
 		private readonly dataClient: DataClient,
+		private readonly historyClient: PlaybackHistoryClient,
 		private readonly logger: Logger,
 	) {}
 
@@ -430,6 +435,102 @@ export class DatabaseManager {
 			await insertTracks();
 		}
 
+		// const totalUsers = await this.dataClient.getUserCount();
+
+		const SAVED_CHUNK = 1000;
+
+		await this.dataClient.forEachUserId(async (userId) => {
+			for (let i = 0; true; i++) {
+				const chunk = await this.dataClient.getSavedTrackUuids(
+					userId,
+					SAVED_CHUNK,
+					i * SAVED_CHUNK,
+				);
+
+				if (chunk.length) {
+					this.db
+						.insert(Schema.songSaves)
+						.values(
+							chunk.map(({ uuid, dateSaved }) => ({
+								songId: uuid,
+								userId,
+								syncId,
+								dateSaved: dateSaved.getTime(),
+							})),
+						)
+						.onConflictDoUpdate({
+							target: [Schema.songSaves.songId, Schema.songSaves.userId],
+							set: {
+								syncId: sql`excluded.sync_id`,
+							},
+						});
+				}
+				if (chunk.length < SAVED_CHUNK) {
+					break;
+				}
+			}
+
+			for (let i = 0; true; i++) {
+				const chunk = await this.dataClient.getSavedAlbumUuids(
+					userId,
+					SAVED_CHUNK,
+					i * SAVED_CHUNK,
+				);
+
+				if (chunk.length) {
+					this.db
+						.insert(Schema.albumSaves)
+						.values(
+							chunk.map(({ uuid, dateSaved }) => ({
+								albumId: uuid,
+								userId,
+								syncId,
+								dateSaved: dateSaved.getTime(),
+							})),
+						)
+						.onConflictDoUpdate({
+							target: [Schema.albumSaves.albumId, Schema.albumSaves.userId],
+							set: {
+								syncId: sql`excluded.sync_id`,
+							},
+						});
+				}
+				if (chunk.length < SAVED_CHUNK) {
+					break;
+				}
+			}
+
+			for (let i = 0; true; i++) {
+				const chunk = await this.dataClient.getSavedArtistUuids(
+					userId,
+					SAVED_CHUNK,
+					i * SAVED_CHUNK,
+				);
+
+				if (chunk.length) {
+					this.db
+						.insert(Schema.artistSaves)
+						.values(
+							chunk.map(({ uuid, dateSaved }) => ({
+								artistId: uuid,
+								userId,
+								syncId,
+								dateSaved: dateSaved.getTime(),
+							})),
+						)
+						.onConflictDoUpdate({
+							target: [Schema.artistSaves.artistId, Schema.artistSaves.userId],
+							set: {
+								syncId: sql`excluded.sync_id`,
+							},
+						});
+				}
+				if (chunk.length < SAVED_CHUNK) {
+					break;
+				}
+			}
+		});
+
 		if (!onlyNew) {
 			await this.db
 				.delete(Schema.albumArtists)
@@ -460,6 +561,15 @@ export class DatabaseManager {
 			await this.db
 				.delete(Schema.genres)
 				.where(ne(Schema.genres.syncId, syncId));
+			await this.db
+				.delete(Schema.songSaves)
+				.where(ne(Schema.songSaves.syncId, syncId));
+			await this.db
+				.delete(Schema.artistSaves)
+				.where(ne(Schema.artistSaves.syncId, syncId));
+			await this.db
+				.delete(Schema.albumSaves)
+				.where(ne(Schema.albumSaves.syncId, syncId));
 		}
 	}
 }

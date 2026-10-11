@@ -112,6 +112,7 @@ export class PlaylistsWebModule extends WebModule {
 				...ownedIds,
 				...memberIds.filter((id) => !seen.has(id)),
 			];
+
 			const playlists = await Promise.allSettled(
 				playlistIds.map((id) =>
 					this.playlistClient.getPlaylist(id, {
@@ -123,6 +124,9 @@ export class PlaylistsWebModule extends WebModule {
 					}),
 				),
 			);
+
+			console.log(playlists);
+
 			const entries: Playlist[] = playlists.map((response, index) => {
 				if (response.status == "fulfilled" && response.value) {
 					return formatPlaylist(response.value);
