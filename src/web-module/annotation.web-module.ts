@@ -24,17 +24,24 @@ export class AnnotationWebModule extends WebModule {
 			if (!parsed) {
 				continue;
 			}
-			const track = await dataClient.getTrack(
-				parsed.pluginId,
-				parsed.libraryId,
-				parsed.trackId,
-			);
-			if (!track) {
-				continue;
-			}
 			if (starred) {
-				await dataClient.saveTrack(track.uuid, userId);
+				await dataClient.saveTrack(
+					{
+						pluginId: parsed.pluginId,
+						libraryId: parsed.libraryId,
+						trackId: parsed.trackId,
+					},
+					userId,
+				);
 			} else {
+				const track = await dataClient.getTrack(
+					parsed.pluginId,
+					parsed.libraryId,
+					parsed.trackId,
+				);
+				if (!track) {
+					continue;
+				}
 				await dataClient.unsaveTrack(track.uuid, userId);
 			}
 		}

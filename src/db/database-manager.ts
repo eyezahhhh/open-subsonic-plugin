@@ -2,12 +2,35 @@ import {
 	DataClient,
 	Logger,
 	PlaybackHistoryClient,
+	SavedAttribute,
 } from "@pipe-bomb/plugin-sdk";
 import { DBClient } from "./client.js";
 import { randomUUID } from "crypto";
 import Formatter from "./db-formatter.js";
 import * as Schema from "./schema.js";
-import { and, eq, ne, sql } from "drizzle-orm";
+import {
+	and,
+	eq,
+	inArray,
+	ne,
+	notExists,
+	notInArray,
+	sql,
+} from "drizzle-orm";
+
+const EVENT_SYNC_ID = "event";
+
+function collectGenres(attributes: SavedAttribute[] | null): Set<string> {
+	const genres = new Set<string>();
+	for (const attribute of attributes ?? []) {
+		if (attribute.key === "genre" && attribute.type === "string") {
+			for (const value of attribute.values) {
+				genres.add(value);
+			}
+		}
+	}
+	return genres;
+}
 
 export class DatabaseManager {
 	constructor(
@@ -27,7 +50,7 @@ export class DatabaseManager {
 		id: string,
 		saved: boolean,
 	) {
-		const syncId = "event";
+		const syncId = EVENT_SYNC_ID;
 		const dateSaved = Date.now();
 		try {
 			if (kind === "track") {
@@ -96,7 +119,295 @@ export class DatabaseManager {
 		}
 	}
 
-	async sync(onlyNew: boolean, onProgress: (fraction: number) => void) {
+	private async upsertGenres(names: Iterable<string>) {
+		const unique = [...new Set(names)];
+		if (!unique.length) {
+			return;
+		}
+		await this.db
+			.insert(Schema.genres)
+			.values(unique.map((name) => ({ name, syncId: EVENT_SYNC_ID })))
+			.onConflictDoNothing();
+	}
+
+	private async pruneGenres() {
+		await this.db.delete(Schema.genres).where(
+			and(
+				notExists(
+					this.db
+						.select()
+						.from(Schema.songGenres)
+						.where(eq(Schema.songGenres.name, Schema.genres.name)),
+				),
+				notExists(
+					this.db
+						.select()
+						.from(Schema.albumGenres)
+						.where(eq(Schema.albumGenres.name, Schema.genres.name)),
+				),
+			),
+		);
+	}
+
+	async refreshArtist(uuid: string) {
+		try {
+			const artist = await this.dataClient.getArtist(uuid, {
+				relations: {
+					albums: true,
+					attributes: true,
+					identities: true,
+				},
+			});
+			if (!artist) {
+				await this.removeArtist(uuid);
+				return;
+			}
+
+			await this.db
+				.insert(Schema.artists)
+				.values({ ...Formatter.toArtist(artist), syncId: EVENT_SYNC_ID })
+				.onConflictDoUpdate({
+					target: Schema.artists.id,
+					set: {
+						syncId: EVENT_SYNC_ID,
+						name: sql`excluded.name`,
+						coverArt: sql`excluded.cover_art`,
+						albumCount: sql`excluded.album_count`,
+						musicBrainzId: sql`excluded.musicbrainz_id`,
+					},
+				});
+		} catch (e) {
+			this.logger.error(`Failed to refresh Artist "${uuid}":`, e);
+		}
+	}
+
+	async removeArtist(uuid: string) {
+		try {
+			await this.db.delete(Schema.artists).where(eq(Schema.artists.id, uuid));
+		} catch (e) {
+			this.logger.error(`Failed to remove Artist "${uuid}":`, e);
+		}
+	}
+
+	async refreshTrack(
+		pluginId: string,
+		libraryId: string,
+		trackId: string,
+		uuid: string,
+	) {
+		try {
+			const track = await this.dataClient.getTrack(
+				pluginId,
+				libraryId,
+				trackId,
+				{
+					relations: {
+						attributes: true,
+						identities: true,
+						artists: {
+							attributes: true,
+						},
+						albums: {
+							attributes: true,
+						},
+					},
+				},
+			);
+			if (!track) {
+				await this.removeTrack(uuid);
+				return;
+			}
+
+			for (const artistUuid of new Set(
+				(track.artists ?? []).map((link) => link.artistUuid),
+			)) {
+				await this.refreshArtist(artistUuid);
+			}
+
+			const songs = Formatter.toSong(track).map((song) => ({
+				...song,
+				syncId: EVENT_SYNC_ID,
+			}));
+			const songIds = songs.map((song) => song.id);
+
+			await this.db
+				.insert(Schema.songs)
+				.values(songs)
+				.onConflictDoUpdate({
+					target: Schema.songs.id,
+					set: {
+						syncId: EVENT_SYNC_ID,
+						title: sql`excluded.title`,
+						coverArt: sql`excluded.cover_art`,
+						duration: sql`excluded.duration`,
+						bitrate: sql`excluded.bitrate`,
+						samplerate: sql`excluded.samplerate`,
+						channels: sql`excluded.channels`,
+						rating: sql`excluded.rating`,
+						bpm: sql`excluded.bpm`,
+						albumId: sql`excluded.album_id`,
+						musicBrainzId: sql`excluded.musicbrainz_id`,
+						trackNumber: sql`excluded.track_number`,
+						discNumber: sql`excluded.disc_number`,
+					},
+				});
+
+			await this.db
+				.delete(Schema.songs)
+				.where(
+					and(
+						eq(Schema.songs.originalUuid, uuid),
+						notInArray(Schema.songs.id, songIds),
+					),
+				);
+
+			await this.db
+				.delete(Schema.songArtists)
+				.where(inArray(Schema.songArtists.songId, songIds));
+			await this.db
+				.delete(Schema.songGenres)
+				.where(inArray(Schema.songGenres.songId, songIds));
+
+			if (track.artists?.length) {
+				const links: Schema.SongArtist[] = [];
+				for (const songId of songIds) {
+					for (const link of track.artists) {
+						links.push({
+							songId,
+							artistId: link.artistUuid,
+							ordinal: link.ordinal,
+							joinPhrase: link.joinPhrase,
+							syncId: EVENT_SYNC_ID,
+						});
+					}
+				}
+				await this.db.insert(Schema.songArtists).values(links);
+			}
+
+			const genres = collectGenres(track.attributes);
+			if (genres.size) {
+				await this.upsertGenres(genres);
+				const rows: Schema.SongGenre[] = [];
+				for (const songId of songIds) {
+					for (const name of genres) {
+						rows.push({ songId, name, syncId: EVENT_SYNC_ID });
+					}
+				}
+				await this.db.insert(Schema.songGenres).values(rows);
+			}
+
+			await this.pruneGenres();
+		} catch (e) {
+			this.logger.error(`Failed to refresh Track "${uuid}":`, e);
+		}
+	}
+
+	async removeTrack(uuid: string) {
+		try {
+			await this.db
+				.delete(Schema.songs)
+				.where(eq(Schema.songs.originalUuid, uuid));
+			await this.db
+				.delete(Schema.songSaves)
+				.where(eq(Schema.songSaves.songId, uuid));
+			await this.pruneGenres();
+		} catch (e) {
+			this.logger.error(`Failed to remove Track "${uuid}":`, e);
+		}
+	}
+
+	async refreshAlbum(uuid: string) {
+		try {
+			const album = await this.dataClient.getAlbum(uuid, {
+				relations: {
+					artists: {
+						attributes: true,
+					},
+					attributes: true,
+					identities: true,
+					tracks: {
+						attributes: true,
+					},
+				},
+			});
+			if (!album) {
+				await this.removeAlbum(uuid);
+				return;
+			}
+
+			for (const artistUuid of new Set(
+				(album.artists ?? []).map((link) => link.artistUuid),
+			)) {
+				await this.refreshArtist(artistUuid);
+			}
+
+			await this.db
+				.insert(Schema.albums)
+				.values({ ...Formatter.toAlbum(album), syncId: EVENT_SYNC_ID })
+				.onConflictDoUpdate({
+					target: Schema.albums.id,
+					set: {
+						syncId: EVENT_SYNC_ID,
+						title: sql`excluded.title`,
+						displayArtist: sql`excluded.display_artist`,
+						coverArt: sql`excluded.cover_art`,
+						songCount: sql`excluded.song_count`,
+						duration: sql`excluded.duration`,
+						dateCreated: sql`excluded.date_created`,
+						year: sql`excluded.year`,
+						musicBrainzId: sql`excluded.musicbrainz_id`,
+					},
+				});
+
+			await this.db
+				.delete(Schema.albumArtists)
+				.where(eq(Schema.albumArtists.albumId, uuid));
+			if (album.artists?.length) {
+				await this.db.insert(Schema.albumArtists).values(
+					album.artists.map((link) => ({
+						albumId: link.albumUuid,
+						artistId: link.artistUuid,
+						ordinal: link.ordinal,
+						joinPhrase: link.joinPhrase,
+						syncId: EVENT_SYNC_ID,
+					})),
+				);
+			}
+
+			await this.db
+				.delete(Schema.albumGenres)
+				.where(eq(Schema.albumGenres.albumId, uuid));
+			const genres = collectGenres(album.attributes);
+			if (genres.size) {
+				await this.upsertGenres(genres);
+				await this.db.insert(Schema.albumGenres).values(
+					[...genres].map((name) => ({
+						albumId: uuid,
+						name,
+						syncId: EVENT_SYNC_ID,
+					})),
+				);
+			}
+
+			await this.pruneGenres();
+		} catch (e) {
+			this.logger.error(`Failed to refresh Album "${uuid}":`, e);
+		}
+	}
+
+	async removeAlbum(uuid: string) {
+		try {
+			await this.db.delete(Schema.albums).where(eq(Schema.albums.id, uuid));
+			await this.db
+				.delete(Schema.songs)
+				.where(eq(Schema.songs.albumId, uuid));
+			await this.pruneGenres();
+		} catch (e) {
+			this.logger.error(`Failed to remove Album "${uuid}":`, e);
+		}
+	}
+
+	async sync(onProgress: (fraction: number) => void) {
 		const STEPS = 3;
 		const yieldToEventLoop = () =>
 			new Promise<void>((resolve) => setImmediate(resolve));
@@ -131,18 +442,6 @@ export class DatabaseManager {
 
 		await this.dataClient.forEachArtistId(async (artistUuid) => {
 			try {
-				if (onlyNew) {
-					const exists = await this.db.query.artists.findFirst({
-						where: eq(Schema.artists.id, artistUuid),
-						columns: {
-							id: true,
-						},
-					});
-					if (exists) {
-						return;
-					}
-				}
-
 				const artist = await this.dataClient.getArtist(artistUuid, {
 					relations: {
 						albums: true,
@@ -248,18 +547,6 @@ export class DatabaseManager {
 
 		await this.dataClient.forEachAlbumId(async (albumUuid) => {
 			try {
-				if (onlyNew) {
-					const exists = await this.db.query.albums.findFirst({
-						where: eq(Schema.albums.id, albumUuid),
-						columns: {
-							id: true,
-						},
-					});
-					if (exists) {
-						return;
-					}
-				}
-
 				const album = await this.dataClient.getAlbum(albumUuid, {
 					relations: {
 						artists: {
@@ -418,18 +705,6 @@ export class DatabaseManager {
 				libraryId,
 				async (trackId, trackUuid) => {
 					try {
-						if (onlyNew) {
-							const exists = await this.db.query.songs.findFirst({
-								where: eq(Schema.songs.originalUuid, trackUuid),
-								columns: {
-									id: true,
-								},
-							});
-							if (exists) {
-								return;
-							}
-						}
-
 						const track = await this.dataClient.getTrack(
 							pluginId,
 							libraryId,
@@ -609,45 +884,43 @@ export class DatabaseManager {
 			}
 		});
 
-		if (!onlyNew) {
-			await this.db
-				.delete(Schema.albumArtists)
-				.where(ne(Schema.albumArtists.syncId, syncId));
-			await yieldToEventLoop();
-			await this.db
-				.delete(Schema.songArtists)
-				.where(ne(Schema.songArtists.syncId, syncId));
-			await yieldToEventLoop();
-			await this.db
-				.delete(Schema.albumGenres)
-				.where(ne(Schema.albumGenres.syncId, syncId));
-			await yieldToEventLoop();
-			await this.db
-				.delete(Schema.songGenres)
-				.where(ne(Schema.songGenres.syncId, syncId));
-			await yieldToEventLoop();
-			await this.db.delete(Schema.songs).where(ne(Schema.songs.syncId, syncId));
-			await yieldToEventLoop();
-			await this.db
-				.delete(Schema.albums)
-				.where(ne(Schema.albums.syncId, syncId));
-			await yieldToEventLoop();
-			await this.db
-				.delete(Schema.artists)
-				.where(ne(Schema.artists.syncId, syncId));
-			await yieldToEventLoop();
-			await this.db
-				.delete(Schema.genres)
-				.where(ne(Schema.genres.syncId, syncId));
-			await this.db
-				.delete(Schema.songSaves)
-				.where(ne(Schema.songSaves.syncId, syncId));
-			await this.db
-				.delete(Schema.artistSaves)
-				.where(ne(Schema.artistSaves.syncId, syncId));
-			await this.db
-				.delete(Schema.albumSaves)
-				.where(ne(Schema.albumSaves.syncId, syncId));
-		}
+		await this.db
+			.delete(Schema.albumArtists)
+			.where(ne(Schema.albumArtists.syncId, syncId));
+		await yieldToEventLoop();
+		await this.db
+			.delete(Schema.songArtists)
+			.where(ne(Schema.songArtists.syncId, syncId));
+		await yieldToEventLoop();
+		await this.db
+			.delete(Schema.albumGenres)
+			.where(ne(Schema.albumGenres.syncId, syncId));
+		await yieldToEventLoop();
+		await this.db
+			.delete(Schema.songGenres)
+			.where(ne(Schema.songGenres.syncId, syncId));
+		await yieldToEventLoop();
+		await this.db.delete(Schema.songs).where(ne(Schema.songs.syncId, syncId));
+		await yieldToEventLoop();
+		await this.db
+			.delete(Schema.albums)
+			.where(ne(Schema.albums.syncId, syncId));
+		await yieldToEventLoop();
+		await this.db
+			.delete(Schema.artists)
+			.where(ne(Schema.artists.syncId, syncId));
+		await yieldToEventLoop();
+		await this.db
+			.delete(Schema.genres)
+			.where(ne(Schema.genres.syncId, syncId));
+		await this.db
+			.delete(Schema.songSaves)
+			.where(ne(Schema.songSaves.syncId, syncId));
+		await this.db
+			.delete(Schema.artistSaves)
+			.where(ne(Schema.artistSaves.syncId, syncId));
+		await this.db
+			.delete(Schema.albumSaves)
+			.where(ne(Schema.albumSaves.syncId, syncId));
 	}
 }

@@ -54,12 +54,11 @@ export default class Plugin implements PipeBomb.Plugin {
 
 		const eventManager = new EventManager(this.api.getDataClient(), database);
 
-		this.api.registerTask<"all" | "new">({
+		this.api.registerTask({
 			id: "sync",
 			resumable: false,
-			getSubTasks: () => ["all", "new"],
-			run: async (ctx, subTaskId) => {
-				await database.sync(subTaskId == "new", ctx.update);
+			run: async (ctx) => {
+				await database.sync(ctx.update);
 			},
 		});
 
