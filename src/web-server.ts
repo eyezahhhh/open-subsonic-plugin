@@ -20,6 +20,7 @@ import { SearchingWebModule } from "./web-module/searching.web-module.js";
 import { BookmarksWebModule } from "./web-module/bookmarks.web-module.js";
 import { SubsonicUserConfigManager } from "./subsonic.user-config-manager.js";
 import { ScrobbleWebModule } from "./web-module/scrobble.web-module.js";
+import { AnnotationWebModule } from "./web-module/annotation.web-module.js";
 
 export class WebServer {
 	private server: Server | null = null;
@@ -56,6 +57,7 @@ export class WebServer {
 			new SearchingWebModule(),
 			new BookmarksWebModule(),
 			new ScrobbleWebModule(),
+			new AnnotationWebModule(),
 		);
 	}
 
