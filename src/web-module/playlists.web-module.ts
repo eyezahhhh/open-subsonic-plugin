@@ -113,15 +113,21 @@ export class PlaylistsWebModule extends WebModule {
 		};
 
 		endpoint("getPlaylists", async ({ userId }) => {
-			const [ownedIds, memberIds] = await Promise.all([
+			const [ownedIds, memberIds, publicIds] = await Promise.all([
 				this.playlistClient.getUserPlaylistUuids(userId),
 				this.playlistClient.getMemberPlaylistUuids(userId),
+				this.playlistClient.getPublicPlaylistUuids(),
 			]);
+
 			const seen = new Set(ownedIds);
 			const playlistIds = [
 				...ownedIds,
 				...memberIds.filter((id) => !seen.has(id)),
 			];
+			for (const id of memberIds) {
+				seen.add(id);
+			}
+			playlistIds.push(...publicIds.filter((id) => !seen.has(id)));
 
 			const playlists = await Promise.allSettled(
 				playlistIds.map((id) =>
@@ -134,8 +140,6 @@ export class PlaylistsWebModule extends WebModule {
 					}),
 				),
 			);
-
-			console.log(playlists);
 
 			const entries: Playlist[] = playlists.map((response, index) => {
 				if (response.status == "fulfilled" && response.value) {
