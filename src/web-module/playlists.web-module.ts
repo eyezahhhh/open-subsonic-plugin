@@ -1,7 +1,7 @@
 import {
 	AttributeValue,
-	PlaylistClient,
 	SavedPlaylistTrack,
+	WritablePlaylistClient,
 } from "@pipe-bomb/plugin-sdk";
 import { CreateEndpointFunction, WebModule } from "./web-module.js";
 import { Playlist } from "../types.js";
@@ -12,7 +12,7 @@ import { eq, inArray } from "drizzle-orm";
 import * as Schema from "../db/schema.js";
 
 export class PlaylistsWebModule extends WebModule {
-	constructor(private readonly playlistClient: PlaylistClient) {
+	constructor(private readonly playlistClient: WritablePlaylistClient) {
 		super();
 	}
 
@@ -161,7 +161,11 @@ export class PlaylistsWebModule extends WebModule {
 			const id = param("id");
 			const playlist = await getPlaylist(id);
 
-			const songs = await this.convertTracklist(playlist.tracks ?? [], db, userId);
+			const songs = await this.convertTracklist(
+				playlist.tracks ?? [],
+				db,
+				userId,
+			);
 
 			return {
 				playlist: formatPlaylist(playlist, songs),
@@ -244,7 +248,11 @@ export class PlaylistsWebModule extends WebModule {
 			await this.addSongs(db, playlistId, songIds, userId);
 
 			const playlist = await getPlaylist(playlistId);
-			const songs = await this.convertTracklist(playlist.tracks ?? [], db, userId);
+			const songs = await this.convertTracklist(
+				playlist.tracks ?? [],
+				db,
+				userId,
+			);
 
 			return {
 				playlist: formatPlaylist(playlist, songs),
@@ -254,7 +262,7 @@ export class PlaylistsWebModule extends WebModule {
 		endpoint("deletePlaylist", async ({ db, param, userId }) => {
 			const id = param("id");
 			const playlist = await getPlaylist(id);
-			if (userId && playlist.ownerUuid != userId) {
+			if (!playlist.owner.isUser || playlist.owner.userUuid != userId) {
 				throw new SubsonicError(ErrCode.UNAUTHORIZED_USER, "Unauthorized");
 			}
 			await this.playlistClient.deletePlaylist(playlist.uuid, {

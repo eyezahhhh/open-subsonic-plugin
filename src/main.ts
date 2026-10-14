@@ -37,7 +37,10 @@ export default class Plugin implements PipeBomb.Plugin {
 		);
 		this.api.registerUserConfigManager("auth", userConfigManager);
 
-		const playlistClient = this.api.getPlaylistClient();
+		const playlistClient = this.api.getPlaylistClient({
+			id: "open-subsonic",
+			name: "OpenSubsonic",
+		});
 
 		const cacheDir = await this.api.requestCacheDirectory();
 		const pluginVersion = await getPluginVersion();

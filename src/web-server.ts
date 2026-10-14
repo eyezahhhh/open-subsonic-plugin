@@ -2,7 +2,7 @@ import {
 	DataClient,
 	Logger,
 	PlaybackHistoryClient,
-	PlaylistClient,
+	WritablePlaylistClient,
 } from "@pipe-bomb/plugin-sdk";
 import express from "express";
 import { Server } from "http";
@@ -34,7 +34,7 @@ export class WebServer {
 		client: DataClient,
 		playbackHistoryClient: PlaybackHistoryClient,
 		sessionManager: SessionManager,
-		playlistClient: PlaylistClient,
+		playlistClient: WritablePlaylistClient,
 		databaseManager: DatabaseManager,
 		pluginVersion: string,
 	) {

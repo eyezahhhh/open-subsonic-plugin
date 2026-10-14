@@ -251,8 +251,11 @@ export function formatPlaylist(
 		duration: Math.round(duration),
 		created: playlist.dateCreated.toISOString(),
 		changed: playlist.dateModified.toISOString(),
-		allowedUser: playlist.owner ? [playlist.owner.username] : [],
-		owner: playlist.owner?.username ?? "",
+		allowedUser:
+			playlist.owner.isUser && playlist.owner.user
+				? [playlist.owner.user.username]
+				: [],
+		owner: (playlist.owner.isUser && playlist.owner.user?.username) || "",
 		entry: songs?.map((song) => formatSong(song)) ?? undefined,
 		coverArt: coverArt ? `${coverArt.uuid}.${coverArt.extension}` : "",
 	};
