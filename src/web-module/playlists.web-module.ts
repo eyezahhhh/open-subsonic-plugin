@@ -1,5 +1,6 @@
 import {
 	AttributeValue,
+	SavedPlaylist,
 	SavedPlaylistTrack,
 	WritablePlaylistClient,
 } from "@pipe-bomb/plugin-sdk";
@@ -129,31 +130,38 @@ export class PlaylistsWebModule extends WebModule {
 			}
 			playlistIds.push(...publicIds.filter((id) => !seen.has(id)));
 
-			const playlists = await Promise.allSettled(
-				playlistIds.map((id) =>
-					this.playlistClient.getPlaylist(id, {
-						relations: {
-							owner: true,
-							attributes: true,
-							tracks: true,
-						},
-					}),
-				),
+			const playlists = await this.playlistClient.getPlaylists(
+				Array.from(new Set(playlistIds)),
+				{
+					relations: {
+						owner: true,
+						attributes: true,
+						tracks: true,
+					},
+				},
 			);
+			const playlistMap = new Map<string, SavedPlaylist>();
+			for (const playlist of playlists) {
+				playlistMap.set(playlist.uuid, playlist);
+			}
 
-			const entries: Playlist[] = playlists.map((response, index) => {
-				if (response.status == "fulfilled" && response.value) {
-					return formatPlaylist(response.value);
+			const entries: Playlist[] = [];
+			for (const playlistId of playlistIds) {
+				const playlist = playlistMap.get(playlistId);
+				if (playlist) {
+					entries.push(formatPlaylist(playlist));
+				} else {
+					entries.push({
+						id: playlistId,
+						name: "Unknown Playlist",
+						songCount: 0,
+						duration: 0,
+						created: new Date(0).toISOString(),
+						changed: new Date(0).toISOString(),
+					});
 				}
-				return {
-					id: playlistIds[index]!,
-					name: "Unknown Playlist",
-					songCount: 0,
-					duration: 0,
-					created: new Date(0).toISOString(),
-					changed: new Date(0).toISOString(),
-				};
-			});
+			}
+
 			return {
 				playlists: {
 					playlist: entries,
