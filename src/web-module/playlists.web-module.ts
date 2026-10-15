@@ -136,7 +136,7 @@ export class PlaylistsWebModule extends WebModule {
 					relations: {
 						owner: true,
 						attributes: true,
-						tracks: true,
+						// tracks: true,
 					},
 				},
 			);
